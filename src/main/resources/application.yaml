@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: investment-manager-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/invest_manager
+    username: invest_manager
+    password: invest_manager
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
