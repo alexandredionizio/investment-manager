@@ -1,12 +1,11 @@
 package com.investmanager.api.asset.service;
 
 import com.investmanager.api.asset.Asset;
-import com.investmanager.api.asset.AssetRepository;
+import com.investmanager.api.asset.repository.AssetRepository;
 import com.investmanager.api.asset.dto.AssetResponse;
 import com.investmanager.api.asset.dto.CreateAssetRequest;
 import com.investmanager.api.shared.exception.AssetNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
 
 import java.util.List;
 

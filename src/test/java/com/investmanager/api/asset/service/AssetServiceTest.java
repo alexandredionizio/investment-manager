@@ -1,7 +1,7 @@
 package com.investmanager.api.asset.service;
 
 import com.investmanager.api.asset.Asset;
-import com.investmanager.api.asset.AssetRepository;
+import com.investmanager.api.asset.repository.AssetRepository;
 import com.investmanager.api.asset.AssetType;
 import com.investmanager.api.asset.dto.AssetResponse;
 import com.investmanager.api.asset.dto.CreateAssetRequest;
