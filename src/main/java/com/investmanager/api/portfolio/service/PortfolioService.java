@@ -3,6 +3,7 @@ package com.investmanager.api.portfolio.service;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.dto.CreatePortfolioRequest;
 import com.investmanager.api.portfolio.dto.PortfolioResponse;
+import com.investmanager.api.portfolio.mapper.PortfolioMapper;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.shared.exception.PortfolioNotFoundException;
 import org.springframework.stereotype.Service;
@@ -14,24 +15,23 @@ public class PortfolioService {
 
     private final PortfolioRepository portfolioRepository;
 
-    public PortfolioService(PortfolioRepository portfolioRepository) {
+    private final PortfolioMapper portfolioMapper;
+
+    public PortfolioService(
+            PortfolioRepository portfolioRepository,
+            PortfolioMapper portfolioMapper) {
+
         this.portfolioRepository = portfolioRepository;
+        this.portfolioMapper = portfolioMapper;
     }
 
     public PortfolioResponse create (CreatePortfolioRequest request) {
-        Portfolio portfolio = new Portfolio(
-                request.name(),
-                request.description()
-        );
+
+        Portfolio portfolio = portfolioMapper.toEntity(request);
 
         Portfolio savedPortfolio = portfolioRepository.save(portfolio);
 
-        return new PortfolioResponse(
-                savedPortfolio.getId(),
-                savedPortfolio.getName(),
-                savedPortfolio.getDescription(),
-                savedPortfolio.getCreatedAt()
-        );
+        return portfolioMapper.toResponse(savedPortfolio);
     }
 
     public PortfolioResponse findById(Long id) {
@@ -39,24 +39,14 @@ public class PortfolioService {
         Portfolio portfolio = portfolioRepository.findById(id)
                 .orElseThrow(() -> new PortfolioNotFoundException(id));
 
-        return new PortfolioResponse(
-                portfolio.getId(),
-                portfolio.getName(),
-                portfolio.getDescription(),
-                portfolio.getCreatedAt()
-        );
+        return portfolioMapper.toResponse(portfolio);
     }
 
     public List<PortfolioResponse> findAll() {
 
         return portfolioRepository.findAll()
                 .stream()
-                .map(portfolio -> new PortfolioResponse(
-                        portfolio.getId(),
-                        portfolio.getName(),
-                        portfolio.getDescription(),
-                        portfolio.getCreatedAt()
-                ))
+                .map(portfolioMapper::toResponse)
                 .toList();
     }
 }
