@@ -6,11 +6,10 @@ import com.investmanager.api.asset.repository.AssetRepository;
 import com.investmanager.api.asset.AssetType;
 import com.investmanager.api.asset.dto.AssetResponse;
 import com.investmanager.api.asset.dto.CreateAssetRequest;
-import com.investmanager.api.shared.exception.AssetNotFoundException;
+import com.investmanager.api.asset.exception.AssetNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 

@@ -5,7 +5,7 @@ import com.investmanager.api.asset.mapper.AssetMapper;
 import com.investmanager.api.asset.repository.AssetRepository;
 import com.investmanager.api.asset.dto.AssetResponse;
 import com.investmanager.api.asset.dto.CreateAssetRequest;
-import com.investmanager.api.shared.exception.AssetNotFoundException;
+import com.investmanager.api.asset.exception.AssetNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

@@ -5,7 +5,7 @@ import com.investmanager.api.portfolio.dto.CreatePortfolioRequest;
 import com.investmanager.api.portfolio.dto.PortfolioResponse;
 import com.investmanager.api.portfolio.mapper.PortfolioMapper;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
-import com.investmanager.api.shared.exception.PortfolioNotFoundException;
+import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
