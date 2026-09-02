@@ -29,7 +29,7 @@ class TransactionRepositoryIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postrgres =
+    static PostgreSQLContainer postgres =
             new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
@@ -123,9 +123,11 @@ class TransactionRepositoryIntegrationTest {
         transactionRepository.save(transaction);
 
         List<Transaction> transactions =
-                transactionRepository.findByPortfolioId(savedPortfolio.getId());
+                transactionRepository.findByPortfolioIdOrderByTransactionDateAscIdAsc(savedPortfolio.getId());
 
         assertEquals(1, transactions.size());
         assertEquals("PETR4", transactions.getFirst().getAsset().getTicker());
     }
+
+
 }

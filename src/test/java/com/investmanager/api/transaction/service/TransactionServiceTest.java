@@ -6,6 +6,9 @@ import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.asset.exception.AssetNotFoundException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
+import com.investmanager.api.position.dto.PositionResponse;
+import com.investmanager.api.position.exception.InsufficientPositionException;
+import com.investmanager.api.position.service.PositionService;
 import com.investmanager.api.transaction.Transaction;
 import com.investmanager.api.transaction.TransactionType;
 import com.investmanager.api.transaction.dto.TransactionRequest;
@@ -44,6 +47,9 @@ class TransactionServiceTest {
     @Mock
     private TransactionMapper transactionMapper;
 
+    @Mock
+    private PositionService positionService;
+
     private TransactionService transactionService;
 
     @BeforeEach
@@ -52,7 +58,8 @@ class TransactionServiceTest {
                 transactionRepository,
                 portfolioRepository,
                 assetRepository,
-                transactionMapper
+                transactionMapper,
+                positionService
         );
     }
 
@@ -285,7 +292,7 @@ class TransactionServiceTest {
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(transactionRepository.findByPortfolioId(1L))
+        when(transactionRepository.findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
                 .thenReturn(List.of(transaction));
 
         when(transactionMapper.toResponse(transaction))
@@ -297,8 +304,119 @@ class TransactionServiceTest {
         assertEquals(1, result.size());
         assertEquals(response, result.getFirst());
 
-        verify(transactionRepository).findByPortfolioId(1L);
+        verify(transactionRepository).findByPortfolioIdOrderByTransactionDateAscIdAsc(1L);
         verify(transactionMapper).toResponse(transaction);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenSellingMoreThanAvailablePosition() {
+
+        Portfolio portfolio = new Portfolio();
+
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+
+        TransactionRequest request = new TransactionRequest(
+                1L,
+                1L,
+                TransactionType.SELL,
+                new BigDecimal("10"),
+                new BigDecimal("50.00"),
+                LocalDate.of(2026, 9, 4)
+        );
+
+        when(portfolioRepository.findById(1L))
+                .thenReturn(Optional.of(portfolio));
+
+        when(assetRepository.findById(1L))
+                .thenReturn(Optional.of(asset));
+
+        PositionResponse currentPosition = new PositionResponse(
+                1L,
+                "ITUB4",
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+
+        when(positionService.calculatePositionByAsset(1L, 1L))
+                .thenReturn(currentPosition);
+
+        assertThrows(
+                InsufficientPositionException.class,
+                () -> transactionService.create(request)
+        );
+
+        verify(transactionRepository, never())
+                .save(any(Transaction.class));
+    }
+
+    @Test
+    void shouldCreateSellTransactionWhenPositionIsSufficient() {
+
+        Portfolio portfolio = new Portfolio();
+
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+
+        TransactionRequest request = new TransactionRequest(
+                1L,
+                1L,
+                TransactionType.SELL,
+                new BigDecimal("50"),
+                new BigDecimal("45.00"),
+                LocalDate.of(2026, 9, 2)
+        );
+
+        when(portfolioRepository.findById(1L))
+                .thenReturn(Optional.of(portfolio));
+
+        when(assetRepository.findById(1L))
+                .thenReturn(Optional.of(asset));
+
+        PositionResponse currentPosition = new PositionResponse(
+                1L,
+                "ITUB4",
+                new BigDecimal("100"),
+                new BigDecimal("37.50"),
+                new BigDecimal("3750.00")
+        );
+
+        when(positionService.calculatePositionByAsset(1L, 1L))
+                .thenReturn(currentPosition);
+
+        Transaction savedTransaction = new Transaction(
+                portfolio,
+                asset,
+                TransactionType.SELL,
+                new BigDecimal("50"),
+                new BigDecimal("45.00"),
+                LocalDate.of(2026, 9, 2)
+        );
+
+        when(transactionRepository.save(any(Transaction.class)))
+                .thenReturn(savedTransaction);
+
+        TransactionResponse expectedResponse = new TransactionResponse(
+                null,
+                null,
+                null,
+                "ITUB4",
+                TransactionType.SELL,
+                new BigDecimal("50"),
+                new BigDecimal("45.00"),
+                LocalDate.of(2026, 9, 2)
+        );
+
+        when(transactionMapper.toResponse(savedTransaction))
+                .thenReturn(expectedResponse);
+
+        TransactionResponse result = transactionService.create(request);
+
+        assertEquals(expectedResponse, result);
+
+        verify(transactionRepository)
+                .save(any(Transaction.class));
     }
 
 }

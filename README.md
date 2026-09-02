@@ -4,7 +4,7 @@ API REST para gerenciamento de investimentos, desenvolvida em Java com Spring Bo
 
 ## Objetivo
 
-Construir uma aplicação capaz de gerenciar carteiras, ativos e transações de investimentos, evoluindo gradualmente para recursos como cálculo de posição, preço médio, patrimônio, proventos, integrações externas, segurança e autenticação.
+Construir uma aplicação capaz de gerenciar carteiras, ativos e transações de investimentos, calcular posições e preços médios, evoluindo gradualmente para recursos como patrimônio, proventos, integrações externas, segurança e autenticação.
 
 ## Tecnologias atuais
 
@@ -46,6 +46,11 @@ com.investmanager.api
 │   ├── repository
 │   ├── service
 │   └── Portfolio
+├── position
+│   ├── controller
+│   ├── dto
+│   ├── exception
+│   └── service
 ├── transaction
 │   ├── controller
 │   ├── dto
@@ -93,12 +98,15 @@ GET  /api/v1/portfolios/{id}
 
 ### Transações
 
-- Cadastro de compra e venda
+- Cadastro de compras e vendas
 - Associação com carteira e ativo
 - Busca por ID
 - Listagem geral
 - Listagem por carteira
+- Ordenação cronológica das transações
 - Validação de quantidade e preço
+- Validação de posição disponível antes de uma venda
+- Bloqueio de vendas superiores à posição disponível
 - Tratamento de transação inexistente
 
 ```text
@@ -107,6 +115,71 @@ GET  /api/v1/transactions
 GET  /api/v1/transactions/{id}
 GET  /api/v1/transactions/portfolio/{portfolioId}
 ```
+
+### Posições
+
+- Consolidação das transações por ativo
+- Cálculo da quantidade atual
+- Cálculo do preço médio ponderado
+- Cálculo do custo total da posição
+- Processamento cronológico das transações
+- Venda parcial mantendo o preço médio
+- Venda total zerando a posição
+- Proteção contra venda superior à quantidade disponível
+- Tratamento de carteira inexistente
+
+```text
+GET /api/v1/portfolios/{portfolioId}/positions
+```
+
+Exemplo de cálculo:
+
+```text
+BUY 100 ITUB4 @ 35,50
+BUY  50 ITUB4 @ 41,50
+
+Quantidade: 150
+Preço médio: 37,50
+Custo total: 5.625,00
+
+SELL 50 ITUB4
+
+Quantidade: 100
+Preço médio: 37,50
+Custo total: 3.750,00
+```
+
+## Regras de negócio
+
+### Compra
+
+Uma compra aumenta a quantidade e o custo total da posição. O preço médio é recalculado considerando todas as compras processadas.
+
+### Venda
+
+Uma venda:
+
+- exige posição disponível suficiente
+- reduz a quantidade do ativo
+- reduz o custo da posição com base no preço médio
+- não altera o preço médio da posição restante
+- não pode gerar posição negativa
+
+Quando toda a posição é vendida:
+
+```text
+quantidade = 0
+preço médio = 0
+custo total = 0
+```
+
+Uma tentativa de venda superior à posição disponível retorna:
+
+```text
+HTTP 400 - Bad Request
+```
+
+e a transação não é persistida.
 
 ## Banco de dados e migrations
 
@@ -124,12 +197,17 @@ O projeto possui testes unitários e de integração.
 - Mockito
 - Testcontainers
 - PostgreSQL real e descartável
-- Integração com Spring Boot via @ServiceConnection
+- Integração com Spring Boot via `@ServiceConnection`
+- Testes das regras de cálculo de posição
+- Testes de preço médio
+- Testes de venda parcial e total
+- Testes de posição insuficiente
+- Testes de persistência e relacionamentos
 
-Ao final da Sprint 3:
+Ao final da Sprint 4:
 
 ```text
-Tests run: 20
+Tests run: 27
 Failures: 0
 Errors: 0
 Skipped: 0
@@ -168,7 +246,7 @@ Executar a suíte de testes:
 - [x] Sprint 1 — Fundação técnica + Asset
 - [x] Sprint 2 — Portfolio + MapStruct + Testcontainers
 - [x] Sprint 3 — Transactions
-- [ ] Sprint 4 — Posição, preço médio e patrimônio
+- [x] Sprint 4 — Posição e preço médio
 - [ ] Sprint 5 — Proventos e corretoras
 - [ ] Sprint 6 — Cotações externas e cache
 - [ ] Sprint 7 — Usuários, autenticação e segurança

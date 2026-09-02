@@ -2,6 +2,7 @@ package com.investmanager.api.shared.exception;
 
 import com.investmanager.api.asset.exception.AssetNotFoundException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
+import com.investmanager.api.position.exception.InsufficientPositionException;
 import com.investmanager.api.transaction.exception.TransactionNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -66,6 +67,18 @@ public class GlobalExceptionHandler {
         return Map.of(
                 "status", HttpStatus.NOT_FOUND.value(),
                 "error", "Não encontrado",
+                "message", exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(InsufficientPositionException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleInsufficientPositionException(
+            InsufficientPositionException exception) {
+
+        return Map.of(
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "error", "Bad Request",
                 "message", exception.getMessage()
         );
     }
