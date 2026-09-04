@@ -11,5 +11,7 @@ public interface TransactionMapper {
     @Mapping(source = "portfolio.id",target = "portfolioId")
     @Mapping(source = "asset.id",target = "assetId")
     @Mapping(source = "asset.ticker", target = "assetTicker")
+    @Mapping(source = "broker.id", target = "brokerId")
+    @Mapping(source = "broker.name", target = "brokerName")
     TransactionResponse toResponse(Transaction transaction);
 }

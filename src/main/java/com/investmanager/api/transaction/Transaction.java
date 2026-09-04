@@ -1,6 +1,7 @@
 package com.investmanager.api.transaction;
 
 import com.investmanager.api.asset.Asset;
+import com.investmanager.api.broker.Broker;
 import com.investmanager.api.portfolio.Portfolio;
 import jakarta.persistence.*;
 
@@ -15,13 +16,17 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_id", nullable = false)
     private Portfolio portfolio;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "asset_id", nullable = false)
     private Asset asset;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "broker_id")
+    private Broker broker;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -37,6 +42,14 @@ public class Transaction {
     private LocalDate transactionDate;
 
     public Transaction() {
+    }
+
+    public Broker getBroker() {
+        return broker;
+    }
+
+    public void setBroker(Broker broker) {
+        this.broker = broker;
     }
 
     public void setPortfolio(Portfolio portfolio) {
@@ -101,6 +114,24 @@ public class Transaction {
 
         this.portfolio = portfolio;
         this.asset = asset;
+        this.type = type;
+        this.quantity = quantity;
+        this.unitPrice = unitPrice;
+        this.transactionDate = transactionDate;
+    }
+
+    public Transaction(
+            Portfolio portfolio,
+            Asset asset,
+            Broker broker,
+            TransactionType type,
+            BigDecimal quantity,
+            BigDecimal unitPrice,
+            LocalDate transactionDate) {
+
+        this.portfolio = portfolio;
+        this.asset = asset;
+        this.broker = broker;
         this.type = type;
         this.quantity = quantity;
         this.unitPrice = unitPrice;

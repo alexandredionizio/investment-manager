@@ -302,15 +302,6 @@ BUILD SUCCESS
 ### Quiz da Sprint
 Pendente.
 
-## Estado atual
-
-```text
-Sprint 1 ✅
-Sprint 2 ✅
-Sprint 3 ✅
-Sprint 4 ✅
-```
-
 Próximo marco:
 
 ```text
@@ -362,4 +353,125 @@ git add .
 git diff --cached
 git commit
 git push
+```
+## Sprint 5 — Proventos e Corretoras
+
+**Status:** Concluída
+
+### Objetivo
+Adicionar corretoras ao domínio, associá-las às transações e implementar o gerenciamento de proventos recebidos pelas carteiras.
+
+### Principais entregas
+
+#### Corretoras
+- Entidade `Broker`
+- Migration para `brokers`
+- `BrokerRepository`
+- `BrokerRequest` e `BrokerResponse`
+- `BrokerMapper`
+- `BrokerService`
+- `BrokerController`
+- `BrokerNotFoundException`
+- Validação de entrada
+- Associação `Transaction -> Broker`
+- `@ManyToOne(fetch = FetchType.LAZY)`
+- Campo `brokerId` em `TransactionRequest`
+- `brokerId` e `brokerName` em `TransactionResponse`
+- Atualização do `TransactionMapper`
+- Validação da existência da corretora no `TransactionService`
+- Testes unitários atualizados
+- Teste para `BrokerNotFoundException`
+- Testes manuais no Postman
+
+#### Proventos
+- `IncomeType`
+    - `DIVIDEND`
+    - `JCP`
+    - `FII_INCOME`
+- Entidade `Income`
+- Migration V6 para `incomes`
+- Relacionamentos com `Portfolio` e `Asset`
+- `IncomeRequest`
+- `IncomeResponse`
+- `IncomeRepository`
+- Consulta por carteira com ordenação cronológica
+- `IncomeMapper`
+- Cálculo de `totalAmount`
+- `IncomeService`
+- `IncomeController`
+- `IncomeNotFoundException`
+- Validações com Bean Validation
+- Consultas com `@Transactional(readOnly = true)`
+- Testes unitários do `IncomeService`
+- Testes de integração do `IncomeRepository`
+- Testes manuais no Postman
+
+### Regra de cálculo de proventos
+
+O valor total do provento não é armazenado no banco.
+
+```text
+totalAmount = amountPerUnit × quantity
+```
+
+O cálculo é realizado ao montar o `IncomeResponse`, evitando redundância e inconsistência entre os valores persistidos.
+
+### Endpoints de corretoras
+
+```text
+POST /api/v1/brokers
+GET  /api/v1/brokers
+GET  /api/v1/brokers/{id}
+```
+
+### Endpoints de proventos
+
+```text
+POST /api/v1/incomes
+GET  /api/v1/incomes
+GET  /api/v1/incomes/{id}
+GET  /api/v1/incomes/portfolio/{portfolioId}
+```
+
+### Conceitos estudados
+- Relacionamentos JPA com `FetchType.LAZY`
+- Lazy loading
+- `LazyInitializationException`
+- Limite da sessão Hibernate
+- `@Transactional(readOnly = true)`
+- Diferença entre `jakarta.transaction.Transactional` e a annotation do Spring
+- MapStruct com propriedades aninhadas
+- MapStruct com `expression`
+- Cálculos financeiros com `BigDecimal`
+- Derived Query Methods com ordenação
+- Validação de regras de domínio
+- Mockito com `verify`, `never` e `verifyNoInteractions`
+- Testes de integração com relacionamentos reais
+- Ordenação determinística por data e ID
+
+### Resultado final da suíte
+
+```text
+Tests run: 37
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+## Estado atual
+
+```text
+Sprint 1 ✅
+Sprint 2 ✅
+Sprint 3 ✅
+Sprint 4 ✅
+Sprint 5 ✅
+```
+
+Próximo marco:
+
+```text
+Sprint 6 — Cotações externas e cache
 ```

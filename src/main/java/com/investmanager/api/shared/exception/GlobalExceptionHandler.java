@@ -1,6 +1,8 @@
 package com.investmanager.api.shared.exception;
 
 import com.investmanager.api.asset.exception.AssetNotFoundException;
+import com.investmanager.api.broker.exception.BrokerNotFoundException;
+import com.investmanager.api.income.exception.IncomeNotFoundException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.position.exception.InsufficientPositionException;
 import com.investmanager.api.transaction.exception.TransactionNotFoundException;
@@ -78,8 +80,34 @@ public class GlobalExceptionHandler {
 
         return Map.of(
                 "status", HttpStatus.BAD_REQUEST.value(),
-                "error", "Bad Request",
+                "error", "Requisição inválida",
                 "message", exception.getMessage()
         );
     }
+
+    @ExceptionHandler(BrokerNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, Object> handleBrokerNotFoundException(
+            BrokerNotFoundException exception) {
+
+        return  Map.of(
+                "status", HttpStatus.NOT_FOUND.value(),
+                "error", "Não encontrado",
+                "message", exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(IncomeNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, Object> handleIncomeNotFoundException (
+            IncomeNotFoundException exception) {
+
+        return Map.of(
+                "status", HttpStatus.NOT_FOUND.value(),
+                "error", "Não encontrado",
+                "message", exception.getMessage()
+        );
+    }
+
+
 }

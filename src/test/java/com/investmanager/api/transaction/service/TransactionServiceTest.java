@@ -2,6 +2,9 @@ package com.investmanager.api.transaction.service;
 
 import com.investmanager.api.asset.Asset;
 import com.investmanager.api.asset.repository.AssetRepository;
+import com.investmanager.api.broker.Broker;
+import com.investmanager.api.broker.exception.BrokerNotFoundException;
+import com.investmanager.api.broker.repository.BrokerRepository;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.asset.exception.AssetNotFoundException;
@@ -50,6 +53,9 @@ class TransactionServiceTest {
     @Mock
     private PositionService positionService;
 
+    @Mock
+    private BrokerRepository brokerRepository;
+
     private TransactionService transactionService;
 
     @BeforeEach
@@ -58,6 +64,7 @@ class TransactionServiceTest {
                 transactionRepository,
                 portfolioRepository,
                 assetRepository,
+                brokerRepository,
                 transactionMapper,
                 positionService
         );
@@ -71,7 +78,11 @@ class TransactionServiceTest {
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
 
+        Broker broker = new Broker();
+        broker.setName("XP Investimentos");
+
         TransactionRequest request = new TransactionRequest(
+                1L,
                 1L,
                 1L,
                 TransactionType.BUY,
@@ -86,9 +97,13 @@ class TransactionServiceTest {
         when(assetRepository.findById(1L))
                 .thenReturn(Optional.of(asset));
 
+        when(brokerRepository.findById(1L))
+                .thenReturn(Optional.of(broker));
+
         Transaction savedTransaction = new Transaction(
                 portfolio,
                 asset,
+                broker,
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -103,6 +118,8 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
+                1L,              // brokerId
+                "XP Investimentos",     // brokerName
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -121,6 +138,7 @@ class TransactionServiceTest {
         verify(assetRepository).findById(1L);
         verify(transactionRepository).save(any(Transaction.class));
         verify(transactionMapper).toResponse(savedTransaction);
+        verify(brokerRepository).findById(1L);
     }
 
     @Test
@@ -128,6 +146,7 @@ class TransactionServiceTest {
 
         TransactionRequest request = new TransactionRequest(
                 999L,
+                1L,
                 1L,
                 TransactionType.BUY,
                 new BigDecimal("100"),
@@ -146,6 +165,7 @@ class TransactionServiceTest {
         verify(portfolioRepository).findById(999L);
         verifyNoInteractions(assetRepository);
         verifyNoInteractions(transactionRepository);
+        verifyNoInteractions(brokerRepository);
     }
 
     @Test
@@ -156,6 +176,7 @@ class TransactionServiceTest {
         TransactionRequest request = new TransactionRequest(
                 1L,
                 999L,
+                1L,
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -176,6 +197,7 @@ class TransactionServiceTest {
         verify(portfolioRepository).findById(1L);
         verify(assetRepository).findById(999L);
         verifyNoInteractions(transactionRepository);
+        verifyNoInteractions(brokerRepository);
     }
 
     @Test
@@ -184,6 +206,7 @@ class TransactionServiceTest {
         Transaction transaction = new Transaction(
                 new Portfolio(),
                 new Asset(),
+                new Broker(),
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -195,6 +218,8 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
+                1L,              // brokerId
+                "XP Investimentos",     // brokerName
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -215,6 +240,7 @@ class TransactionServiceTest {
         verify(transactionRepository).findById(1L);
         verify(transactionMapper).toResponse(transaction);
     }
+
     @Test
     void shouldThrowExceptionWhenTransactionNotFound() {
 
@@ -236,6 +262,7 @@ class TransactionServiceTest {
         Transaction transaction = new Transaction(
                 new Portfolio(),
                 new Asset(),
+                new Broker(),
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -247,6 +274,8 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
+                1L,              // brokerId
+                "XP Investimentos",     // brokerName
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -275,6 +304,7 @@ class TransactionServiceTest {
         Transaction transaction = new Transaction(
                 new Portfolio(),
                 new Asset(),
+                new Broker(),
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -286,6 +316,8 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
+                1L,              // brokerId
+                "XP Investimentos",     // brokerName
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -316,7 +348,11 @@ class TransactionServiceTest {
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
 
+        Broker broker = new Broker();
+        broker.setName("XP Investimentos");
+
         TransactionRequest request = new TransactionRequest(
+                1L,
                 1L,
                 1L,
                 TransactionType.SELL,
@@ -330,6 +366,9 @@ class TransactionServiceTest {
 
         when(assetRepository.findById(1L))
                 .thenReturn(Optional.of(asset));
+
+        when(brokerRepository.findById(1L))
+                .thenReturn(Optional.of(broker));
 
         PositionResponse currentPosition = new PositionResponse(
                 1L,
@@ -349,6 +388,8 @@ class TransactionServiceTest {
 
         verify(transactionRepository, never())
                 .save(any(Transaction.class));
+
+        verify(brokerRepository).findById(1L);
     }
 
     @Test
@@ -359,7 +400,11 @@ class TransactionServiceTest {
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
 
+        Broker broker = new Broker();
+        broker.setName("XP Investimentos");
+
         TransactionRequest request = new TransactionRequest(
+                1L,
                 1L,
                 1L,
                 TransactionType.SELL,
@@ -373,6 +418,9 @@ class TransactionServiceTest {
 
         when(assetRepository.findById(1L))
                 .thenReturn(Optional.of(asset));
+
+        when(brokerRepository.findById(1L))
+                .thenReturn(Optional.of(broker));
 
         PositionResponse currentPosition = new PositionResponse(
                 1L,
@@ -388,6 +436,7 @@ class TransactionServiceTest {
         Transaction savedTransaction = new Transaction(
                 portfolio,
                 asset,
+                broker,
                 TransactionType.SELL,
                 new BigDecimal("50"),
                 new BigDecimal("45.00"),
@@ -402,6 +451,8 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
+                1L,              // brokerId
+                "XP Investimentos",     // brokerName
                 TransactionType.SELL,
                 new BigDecimal("50"),
                 new BigDecimal("45.00"),
@@ -417,6 +468,45 @@ class TransactionServiceTest {
 
         verify(transactionRepository)
                 .save(any(Transaction.class));
+
+        verify(brokerRepository).findById(1L);
     }
 
+    @Test
+    void shouldThrowExceptionWhenBrokerNotFound() {
+
+        Portfolio portfolio = new Portfolio();
+        Asset asset = new Asset();
+
+        TransactionRequest request = new TransactionRequest(
+                1L,
+                1L,
+                999L,
+                TransactionType.BUY,
+                new BigDecimal("100"),
+                new BigDecimal("35.50"),
+                LocalDate.of(2026, 9, 1)
+        );
+
+        when(portfolioRepository.findById(1L))
+                .thenReturn(Optional.of(portfolio));
+
+        when(assetRepository.findById(1L))
+                .thenReturn(Optional.of(asset));
+
+        when(brokerRepository.findById(999L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                BrokerNotFoundException.class,
+                () -> transactionService.create(request)
+        );
+
+        verify(brokerRepository).findById(999L);
+
+        verify(transactionRepository, never())
+                .save(any(Transaction.class));
+
+        verifyNoInteractions(positionService);
+    }
 }

@@ -11,6 +11,8 @@ public record TransactionResponse(
         Long portfolioId,
         Long assetId,
         String assetTicker,
+        Long brokerId,
+        String brokerName,
         TransactionType type,
         BigDecimal quantity,
         BigDecimal unitPrice,

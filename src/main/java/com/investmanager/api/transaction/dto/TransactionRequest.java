@@ -15,6 +15,9 @@ public record TransactionRequest(
         @NotNull(message = "O ativo é obrigatório")
         Long assetId,
 
+        @NotNull(message = "A corretora é obrigatória")
+        Long brokerId,
+
         @NotNull(message = "O tipo da transação é obrigatório")
         TransactionType type,
 
@@ -28,6 +31,7 @@ public record TransactionRequest(
 
         @NotNull(message = "A data da transação é obrigatória")
         LocalDate transactionDate
+
 
 ) {
 }

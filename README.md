@@ -109,11 +109,44 @@ GET  /api/v1/portfolios/{id}
 - Bloqueio de vendas superiores à posição disponível
 - Tratamento de transação inexistente
 
+
 ```text
 POST /api/v1/transactions
 GET  /api/v1/transactions
 GET  /api/v1/transactions/{id}
 GET  /api/v1/transactions/portfolio/{portfolioId}
+```
+
+### Corretoras
+
+- Cadastro de corretoras
+- Busca por ID
+- Listagem de corretoras
+- Associação da corretora às transações
+- Validação e tratamento de corretora inexistente
+
+```text
+POST /api/v1/brokers
+GET  /api/v1/brokers
+GET  /api/v1/brokers/{id}
+```
+
+### Proventos
+
+- Cadastro de dividendos, JCP e rendimentos de FIIs
+- Associação com carteira e ativo
+- Busca por ID
+- Listagem geral
+- Listagem por carteira
+- Cálculo automático do valor total do provento
+- Validação de quantidade e valor por unidade
+- Tratamento de provento inexistente
+
+```text
+POST /api/v1/incomes
+GET  /api/v1/incomes
+GET  /api/v1/incomes/{id}
+GET  /api/v1/incomes/portfolio/{portfolioId}
 ```
 
 ### Posições
@@ -187,6 +220,9 @@ e a transação não é persistida.
 V1 - criação de assets
 V2 - criação de portfolios
 V3 - criação de transactions
+V4 - criação de brokers
+v5 - adição de broker a transações
+V6 - criação de incomes
 ```
 
 ## Testes
@@ -207,7 +243,7 @@ O projeto possui testes unitários e de integração.
 Ao final da Sprint 4:
 
 ```text
-Tests run: 27
+Tests run: 37
 Failures: 0
 Errors: 0
 Skipped: 0
@@ -246,8 +282,8 @@ Executar a suíte de testes:
 - [x] Sprint 1 — Fundação técnica + Asset
 - [x] Sprint 2 — Portfolio + MapStruct + Testcontainers
 - [x] Sprint 3 — Transactions
-- [x] Sprint 4 — Posição e preço médio
-- [ ] Sprint 5 — Proventos e corretoras
+- [x] Sprint 4 — Posição, preço médio e patrimônio
+- [x] Sprint 5 — Proventos e corretoras
 - [ ] Sprint 6 — Cotações externas e cache
 - [ ] Sprint 7 — Usuários, autenticação e segurança
 - [ ] Sprint 8 — Consolidação, documentação e preparação para produção

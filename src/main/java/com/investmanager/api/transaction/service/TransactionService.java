@@ -2,6 +2,9 @@ package com.investmanager.api.transaction.service;
 
 import com.investmanager.api.asset.Asset;
 import com.investmanager.api.asset.repository.AssetRepository;
+import com.investmanager.api.broker.Broker;
+import com.investmanager.api.broker.exception.BrokerNotFoundException;
+import com.investmanager.api.broker.repository.BrokerRepository;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.asset.exception.AssetNotFoundException;
@@ -29,17 +32,20 @@ public class TransactionService {
     private final AssetRepository assetRepository;
     private final TransactionMapper transactionMapper;
     private final PositionService positionService;
+    private final BrokerRepository brokerRepository;
 
     public TransactionService(
             TransactionRepository transactionRepository,
             PortfolioRepository portfolioRepository,
             AssetRepository assetRepository,
+            BrokerRepository brokerRepository,
             TransactionMapper transactionMapper,
             PositionService positionService) {
 
         this.transactionRepository = transactionRepository;
         this.portfolioRepository = portfolioRepository;
         this.assetRepository = assetRepository;
+        this.brokerRepository = brokerRepository;
         this.transactionMapper = transactionMapper;
         this.positionService = positionService;
     }
@@ -55,6 +61,11 @@ public class TransactionService {
                 .findById(request.assetId())
                 .orElseThrow(() ->
                         new AssetNotFoundException(request.assetId()));
+
+        Broker broker = brokerRepository
+                .findById(request.brokerId())
+                .orElseThrow(() ->
+                        new BrokerNotFoundException(request.brokerId()));
 
         if (request.type() == TransactionType.SELL) {
 
@@ -77,6 +88,7 @@ public class TransactionService {
         Transaction transaction = new Transaction(
                 portfolio,
                 asset,
+                broker,
                 request.type(),
                 request.quantity(),
                 request.unitPrice(),
