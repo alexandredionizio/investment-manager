@@ -475,3 +475,240 @@ Próximo marco:
 ```text
 Sprint 6 — Cotações externas e cache
 ```
+
+---
+
+## Sprint 6 — Cotações Externas e Cache
+
+**Status:** Concluída
+
+### Objetivo
+
+Integrar a aplicação a uma fonte externa de cotações de mercado, utilizar cache para reduzir chamadas à API e enriquecer as posições da carteira com valor atual, lucro/prejuízo e rentabilidade.
+
+### Principais entregas
+
+#### Integração com cotações
+
+- Criação da feature `quote`
+- Integração com a API brapi
+- Utilização do endpoint de cotações da brapi
+- Autenticação via Bearer Token
+- Token armazenado através da variável de ambiente `BRAPI_TOKEN`
+- `BrapiClient`
+- DTOs específicos para a resposta da API externa
+- `QuoteService`
+- `QuoteController`
+- `QuoteResponse`
+- `QuoteNotFoundException`
+- Tratamento de ticker inexistente com HTTP 404
+- Proteção contra respostas vazias da API externa
+
+#### Cache com Redis
+
+- Redis 7 executado via Docker Compose
+- Spring Data Redis
+- `StringRedisTemplate`
+- Cache de cotações por ticker
+- Padrão de chave:
+
+```text
+quote:{ticker}
+```
+
+- TTL de 5 minutos
+- Implementação de cache HIT
+- Implementação de cache MISS
+- Persistência automática da cotação no cache após consulta à brapi
+- Validação real do cache através do `redis-cli`
+- Validação real do TTL
+
+Fluxo implementado:
+
+```text
+QuoteService
+    ↓
+consulta Redis
+    ↓
+cache HIT ─────────────→ retorna cotação
+    ↓
+cache MISS
+    ↓
+brapi
+    ↓
+salva no Redis com TTL
+    ↓
+retorna cotação
+```
+
+#### Valorização das posições
+
+- Criação de `PositionMarketResponse`
+- Novo cálculo de posição valorizada a mercado
+- Integração entre `PositionService` e `QuoteService`
+- Manutenção do cálculo contábil separado da consulta de mercado
+- Cálculo do preço atual
+- Cálculo do valor atual da posição
+- Cálculo de lucro/prejuízo não realizado
+- Cálculo percentual de rentabilidade
+- Proteção contra divisão por zero
+- Exclusão de posições zeradas da consulta de mercado
+- Correção da precisão do cálculo percentual com `BigDecimal`
+- Carregamento explícito de `Asset` através de `@EntityGraph`
+- Correção de `LazyInitializationException` sem alterar a associação para `EAGER`
+
+### Endpoints
+
+```text
+GET /api/v1/quotes/{symbol}
+
+GET /api/v1/portfolios/{portfolioId}/positions
+GET /api/v1/portfolios/{portfolioId}/positions/market
+```
+
+### Exemplo validado
+
+```text
+Ativo:             ITUB4
+Quantidade:        40
+Preço médio:       42,50
+Custo total:       1.700,00
+
+Cotação atual:     42,52
+Valor atual:       1.700,80
+Lucro/prejuízo:    0,80
+Rentabilidade:     0,0471%
+```
+
+Cálculos:
+
+```text
+currentValue =
+quantity × currentPrice
+
+profitLoss =
+currentValue - totalCost
+
+profitabilityPercent =
+(profitLoss × 100) / totalCost
+```
+
+### Decisão arquitetural
+
+O cálculo contábil da posição permaneceu separado da valorização a mercado.
+
+```text
+calculatePositions()
+        ↓
+quantidade
+preço médio
+custo total
+        ↓
+não depende de serviço externo
+
+
+calculateMarketPositions()
+        ↓
+calculatePositions()
+        +
+QuoteService
+        ↓
+cotação atual
+valor atual
+lucro/prejuízo
+rentabilidade
+```
+
+Essa separação evita que regras internas, como a validação de uma venda, dependam de Redis, internet ou da API externa de cotações.
+
+### Lazy loading
+
+Durante o teste real do endpoint de posições de mercado foi identificada uma `LazyInitializationException` ao acessar o `Asset` associado a uma `Transaction`.
+
+A solução adotada foi carregar explicitamente o ativo na consulta necessária:
+
+```java
+@EntityGraph(attributePaths = "asset")
+List<Transaction> findByPortfolioIdOrderByTransactionDateAscIdAsc(
+        Long portfolioId
+);
+```
+
+A associação permaneceu `LAZY`, evitando transformar o carregamento antecipado em comportamento global.
+
+### Testes
+
+Foram adicionados testes para:
+
+- retorno de cotação atual
+- cotação inexistente
+- resposta vazia da API externa
+- cache HIT
+- cache MISS
+- persistência da cotação no Redis com TTL
+- cálculo de posição valorizada a mercado
+- valor atual da posição
+- lucro/prejuízo
+- rentabilidade
+- exclusão de posição zerada
+- garantia de que posição zerada não consulta o `QuoteService`
+
+O teste de contexto utiliza um token fictício:
+
+```java
+@SpringBootTest(properties = "brapi.token=test-token")
+```
+
+Isso permite carregar o contexto Spring durante os testes sem depender de uma credencial real da brapi.
+
+### Conceitos estudados
+
+- Integração com API REST externa
+- `RestClient`
+- Bearer Token
+- Variáveis de ambiente
+- Proteção de credenciais
+- Redis
+- Cache
+- TTL
+- Cache HIT e cache MISS
+- `StringRedisTemplate`
+- Docker Compose com múltiplos serviços
+- Mock de dependências externas
+- `verifyNoInteractions`
+- `BigDecimal` em cálculos financeiros
+- Precisão e arredondamento
+- Lazy loading
+- Hibernate Proxy
+- `LazyInitializationException`
+- `@EntityGraph`
+- Separação entre cálculo de domínio e integração externa
+- Testes unitários sem dependência de internet
+
+### Resultado final da suíte
+
+```text
+Tests run: 43
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+## Estado atual
+
+```text
+Sprint 1 ✅
+Sprint 2 ✅
+Sprint 3 ✅
+Sprint 4 ✅
+Sprint 5 ✅
+Sprint 6 ✅
+```
+
+Próximo marco:
+
+```text
+Sprint 7 — Usuários, autenticação e segurança
+```

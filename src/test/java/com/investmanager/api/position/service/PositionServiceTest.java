@@ -3,8 +3,10 @@ package com.investmanager.api.position.service;
 import com.investmanager.api.asset.Asset;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
+import com.investmanager.api.position.dto.PositionMarketResponse;
 import com.investmanager.api.position.dto.PositionResponse;
 import com.investmanager.api.position.exception.InsufficientPositionException;
+import com.investmanager.api.quote.service.QuoteService;
 import com.investmanager.api.transaction.Transaction;
 import com.investmanager.api.transaction.TransactionType;
 import com.investmanager.api.transaction.repository.TransactionRepository;
@@ -20,6 +22,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,13 +34,17 @@ class PositionServiceTest {
     @Mock
     private PortfolioRepository portfolioRepository;
 
+    @Mock
+    private QuoteService quoteService;
+
     private PositionService positionService;
 
     @BeforeEach
     void setUp() {
         positionService = new PositionService(
                 transactionRepository,
-                portfolioRepository
+                portfolioRepository,
+                quoteService
         );
     }
 
@@ -247,5 +254,99 @@ class PositionServiceTest {
                 PortfolioNotFoundException.class,
                 () -> positionService.calculatePositions(999L)
         );
+    }
+
+    @Test
+    void shouldCalculateMarketPosition() {
+
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+
+        Transaction buy = new Transaction(
+                null,
+                asset,
+                TransactionType.BUY,
+                new BigDecimal("100"),
+                new BigDecimal("35.00"),
+                LocalDate.of(2026, 9, 1)
+        );
+
+        when(portfolioRepository.existsById(1L))
+                .thenReturn(true);
+
+        when(transactionRepository
+                .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
+                .thenReturn(List.of(buy));
+
+        when(quoteService.getCurrentPrice("ITUB4"))
+                .thenReturn(new BigDecimal("42.00"));
+
+        List<PositionMarketResponse> positions =
+                positionService.calculateMarketPositions(1L);
+
+        PositionMarketResponse position = positions.getFirst();
+
+        assertEquals(
+                0,
+                new BigDecimal("42.00")
+                        .compareTo(position.currentPrice())
+        );
+
+        assertEquals(
+                0,
+                new BigDecimal("4200.00")
+                        .compareTo(position.currentValue())
+        );
+
+        assertEquals(
+                0,
+                new BigDecimal("700.00")
+                        .compareTo(position.profitLoss())
+        );
+
+        assertEquals(
+                0,
+                new BigDecimal("20.0000")
+                        .compareTo(position.profitabilityPercent())
+        );
+    }
+
+    @Test
+    void shouldNotRequestQuoteForZeroPosition() {
+
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+
+        Transaction buy = new Transaction(
+                null,
+                asset,
+                TransactionType.BUY,
+                new BigDecimal("100"),
+                new BigDecimal("35.00"),
+                LocalDate.of(2026, 9, 1)
+        );
+
+        Transaction sell = new Transaction(
+                null,
+                asset,
+                TransactionType.SELL,
+                new BigDecimal("100"),
+                new BigDecimal("42.00"),
+                LocalDate.of(2026, 9, 2)
+        );
+
+        when(portfolioRepository.existsById(1L))
+                .thenReturn(true);
+
+        when(transactionRepository
+                .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
+                .thenReturn(List.of(buy, sell));
+
+        List<PositionMarketResponse> positions =
+                positionService.calculateMarketPositions(1L);
+
+        assertEquals(0, positions.size());
+
+        verifyNoInteractions(quoteService);
     }
 }

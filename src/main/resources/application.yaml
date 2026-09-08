@@ -14,3 +14,11 @@ spring:
 
   flyway:
     enabled: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+brapi:
+  token: ${BRAPI_TOKEN}

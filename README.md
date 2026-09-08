@@ -14,6 +14,7 @@ Construir uma aplicação capaz de gerenciar carteiras, ativos e transações de
 - Spring Data JPA
 - Jakarta Validation
 - PostgreSQL 17
+- Redis 7
 - Flyway
 - MapStruct
 - JUnit
@@ -60,6 +61,13 @@ com.investmanager.api
 │   ├── service
 │   ├── Transaction
 │   └── TransactionType
+├── quote
+│   ├── client
+│   │   └── dto
+│   ├── controller
+│   ├── dto
+│   ├── exception
+│   └── service
 └── shared
     └── exception
         ├── GlobalExceptionHandler
@@ -165,6 +173,23 @@ GET  /api/v1/incomes/portfolio/{portfolioId}
 GET /api/v1/portfolios/{portfolioId}/positions
 ```
 
+### Posições valorizadas a mercado
+
+- Consulta de cotação atual dos ativos
+- Integração com API externa brapi
+- Cache de cotações utilizando Redis
+- TTL de 5 minutos para as cotações
+- Cálculo do valor atual da posição
+- Cálculo de lucro ou prejuízo não realizado
+- Cálculo percentual de rentabilidade
+- Exclusão de posições zeradas da consulta de mercado
+- Carregamento explícito do ativo com `@EntityGraph`
+- Tratamento de cotação inexistente
+
+```text
+GET /api/v1/portfolios/{portfolioId}/positions/market
+GET /api/v1/quotes/{symbol}
+
 Exemplo de cálculo:
 
 ```text
@@ -240,15 +265,23 @@ O projeto possui testes unitários e de integração.
 - Testes de posição insuficiente
 - Testes de persistência e relacionamentos
 
-Ao final da Sprint 4:
+Ao final da Sprint 6:
 
 ```text
-Tests run: 37
+Tests run: 43
 Failures: 0
 Errors: 0
 Skipped: 0
 
 BUILD SUCCESS
+
+- Testes do serviço de cotações
+- Testes de cache HIT e cache MISS
+- Teste de TTL do Redis
+- Testes de valorização da posição a mercado
+- Teste de lucro/prejuízo e rentabilidade
+- Teste para impedir consulta de cotação de posições zeradas
+- Validação do TTL das cotações no Redis
 ```
 
 ## Como executar
@@ -258,6 +291,15 @@ Pré-requisitos:
 - Java 21
 - Docker Desktop
 - Git
+
+### Configuração da API de cotações
+
+A aplicação utiliza a brapi para consultar cotações de mercado.
+
+O token deve ser fornecido através da variável de ambiente:
+
+```text
+BRAPI_TOKEN
 
 Subir os containers:
 
@@ -284,7 +326,7 @@ Executar a suíte de testes:
 - [x] Sprint 3 — Transactions
 - [x] Sprint 4 — Posição, preço médio e patrimônio
 - [x] Sprint 5 — Proventos e corretoras
-- [ ] Sprint 6 — Cotações externas e cache
+- [x] Sprint 6 — Cotações externas e cache
 - [ ] Sprint 7 — Usuários, autenticação e segurança
 - [ ] Sprint 8 — Consolidação, documentação e preparação para produção
 - [ ] Sprint 9 opcional — Front-end React

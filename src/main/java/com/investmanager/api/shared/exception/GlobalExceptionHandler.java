@@ -5,6 +5,7 @@ import com.investmanager.api.broker.exception.BrokerNotFoundException;
 import com.investmanager.api.income.exception.IncomeNotFoundException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.position.exception.InsufficientPositionException;
+import com.investmanager.api.quote.exception.QuoteNotFoundException;
 import com.investmanager.api.transaction.exception.TransactionNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -101,6 +102,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, Object> handleIncomeNotFoundException (
             IncomeNotFoundException exception) {
+
+        return Map.of(
+                "status", HttpStatus.NOT_FOUND.value(),
+                "error", "Não encontrado",
+                "message", exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(QuoteNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, Object> handleQuoteNotFoundException(
+            QuoteNotFoundException exception) {
 
         return Map.of(
                 "status", HttpStatus.NOT_FOUND.value(),

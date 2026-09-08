@@ -1,5 +1,6 @@
 package com.investmanager.api.position.controller;
 
+import com.investmanager.api.position.dto.PositionMarketResponse;
 import com.investmanager.api.position.dto.PositionResponse;
 import com.investmanager.api.position.service.PositionService;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,15 @@ public class PositionController {
 
         return ResponseEntity.ok(
                 positionService.calculatePositions(portfolioId)
+        );
+    }
+
+    @GetMapping("/market")
+    public ResponseEntity<List<PositionMarketResponse>> findMarketPositions(
+            @PathVariable Long portfolioId) {
+
+        return ResponseEntity.ok(
+                positionService.calculateMarketPositions(portfolioId)
         );
     }
 }

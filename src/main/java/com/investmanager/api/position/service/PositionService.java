@@ -3,8 +3,10 @@ package com.investmanager.api.position.service;
 import com.investmanager.api.asset.Asset;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
+import com.investmanager.api.position.dto.PositionMarketResponse;
 import com.investmanager.api.position.dto.PositionResponse;
 import com.investmanager.api.position.exception.InsufficientPositionException;
+import com.investmanager.api.quote.service.QuoteService;
 import com.investmanager.api.transaction.Transaction;
 import com.investmanager.api.transaction.TransactionType;
 import com.investmanager.api.transaction.repository.TransactionRepository;
@@ -23,12 +25,16 @@ public class PositionService {
 
     private final PortfolioRepository portfolioRepository;
 
+    private final QuoteService quoteService;
+
     public PositionService(
             TransactionRepository transactionRepository,
-            PortfolioRepository portfolioRepository) {
+            PortfolioRepository portfolioRepository,
+            QuoteService quoteService) {
 
         this.transactionRepository = transactionRepository;
         this.portfolioRepository = portfolioRepository;
+        this.quoteService = quoteService;
     }
 
     public List<PositionResponse> calculatePositions(Long portfolioId) {
@@ -124,5 +130,61 @@ public class PositionService {
                 .filter(position -> position.assetId().equals(assetId))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public List<PositionMarketResponse> calculateMarketPositions(
+            Long portfolioId) {
+
+        return calculatePositions(portfolioId)
+                .stream()
+                .filter(position ->
+                        position.quantity()
+                                .compareTo(BigDecimal.ZERO) > 0
+                )
+                .map(position -> {
+
+                    BigDecimal currentPrice =
+                            quoteService.getCurrentPrice(
+                                    position.assetTicker()
+                            );
+
+                    BigDecimal currentValue =
+                            position.quantity()
+                                    .multiply(currentPrice);
+
+                    BigDecimal profitLoss =
+                            currentValue.subtract(
+                                    position.totalCost()
+                            );
+
+                    BigDecimal profitabilityPercent =
+                            BigDecimal.ZERO;
+
+                    if (position.totalCost()
+                            .compareTo(BigDecimal.ZERO) > 0) {
+
+                        profitabilityPercent =
+                                profitLoss
+                                        .multiply(BigDecimal.valueOf(100))
+                                        .divide(
+                                                position.totalCost(),
+                                                4,
+                                                RoundingMode.HALF_UP
+                                        );
+                    }
+
+                    return new PositionMarketResponse(
+                            position.assetId(),
+                            position.assetTicker(),
+                            position.quantity(),
+                            position.averagePrice(),
+                            position.totalCost(),
+                            currentPrice,
+                            currentValue,
+                            profitLoss,
+                            profitabilityPercent
+                    );
+                })
+                .toList();
     }
 }
