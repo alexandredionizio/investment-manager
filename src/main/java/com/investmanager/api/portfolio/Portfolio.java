@@ -1,5 +1,6 @@
 package com.investmanager.api.portfolio;
 
+import com.investmanager.api.user.entity.User;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -21,9 +22,17 @@ public class Portfolio {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    public Portfolio(String name, String description) {
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    public Portfolio(String name,
+                     String description,
+                     User user) {
+
         this.name = name;
         this.description = description;
+        this.user = user;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -59,5 +68,13 @@ public class Portfolio {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 }

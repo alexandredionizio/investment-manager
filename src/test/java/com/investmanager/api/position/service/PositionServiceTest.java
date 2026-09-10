@@ -1,6 +1,7 @@
 package com.investmanager.api.position.service;
 
 import com.investmanager.api.asset.Asset;
+import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.position.dto.PositionMarketResponse;
@@ -19,14 +20,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PositionServiceTest {
+
+    private static final Long USER_ID = 2L;
 
     @Mock
     private TransactionRepository transactionRepository;
@@ -51,6 +54,8 @@ class PositionServiceTest {
     @Test
     void shouldCalculateAveragePriceForMultipleBuys() {
 
+        Portfolio portfolio = new Portfolio();
+
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
 
@@ -72,30 +77,41 @@ class PositionServiceTest {
                 LocalDate.of(2026, 9, 2)
         );
 
-        when(portfolioRepository.existsById(1L))
-                .thenReturn(true);
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
 
         when(transactionRepository
                 .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
                 .thenReturn(List.of(buy1, buy2));
 
         List<PositionResponse> positions =
-                positionService.calculatePositions(1L);
+                positionService.calculatePositions(1L, USER_ID);
 
         PositionResponse position = positions.getFirst();
 
-        assertEquals(0,
-                new BigDecimal("150").compareTo(position.quantity()));
+        assertEquals(
+                0,
+                new BigDecimal("150")
+                        .compareTo(position.quantity())
+        );
 
-        assertEquals(0,
-                new BigDecimal("37.50").compareTo(position.averagePrice()));
+        assertEquals(
+                0,
+                new BigDecimal("37.50")
+                        .compareTo(position.averagePrice())
+        );
 
-        assertEquals(0,
-                new BigDecimal("5625.00").compareTo(position.totalCost()));
+        assertEquals(
+                0,
+                new BigDecimal("5625.00")
+                        .compareTo(position.totalCost())
+        );
     }
 
     @Test
     void shouldKeepAveragePriceAfterPartialSell() {
+
+        Portfolio portfolio = new Portfolio();
 
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
@@ -127,36 +143,41 @@ class PositionServiceTest {
                 LocalDate.of(2026, 9, 3)
         );
 
-        when(portfolioRepository.existsById(1L))
-                .thenReturn(true);
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
 
         when(transactionRepository
                 .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
                 .thenReturn(List.of(buy1, buy2, sell));
 
         List<PositionResponse> positions =
-                positionService.calculatePositions(1L);
+                positionService.calculatePositions(1L, USER_ID);
 
         PositionResponse position = positions.getFirst();
 
         assertEquals(
                 0,
-                new BigDecimal("100").compareTo(position.quantity())
+                new BigDecimal("100")
+                        .compareTo(position.quantity())
         );
 
         assertEquals(
                 0,
-                new BigDecimal("37.50").compareTo(position.averagePrice())
+                new BigDecimal("37.50")
+                        .compareTo(position.averagePrice())
         );
 
         assertEquals(
                 0,
-                new BigDecimal("3750.00").compareTo(position.totalCost())
+                new BigDecimal("3750.00")
+                        .compareTo(position.totalCost())
         );
     }
 
     @Test
     void shouldResetPositionAfterFullSell() {
+
+        Portfolio portfolio = new Portfolio();
 
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
@@ -179,36 +200,41 @@ class PositionServiceTest {
                 LocalDate.of(2026, 9, 2)
         );
 
-        when(portfolioRepository.existsById(1L))
-                .thenReturn(true);
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
 
         when(transactionRepository
                 .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
                 .thenReturn(List.of(buy, sell));
 
         List<PositionResponse> positions =
-                positionService.calculatePositions(1L);
+                positionService.calculatePositions(1L, USER_ID);
 
         PositionResponse position = positions.getFirst();
 
         assertEquals(
                 0,
-                BigDecimal.ZERO.compareTo(position.quantity())
+                BigDecimal.ZERO
+                        .compareTo(position.quantity())
         );
 
         assertEquals(
                 0,
-                BigDecimal.ZERO.compareTo(position.averagePrice())
+                BigDecimal.ZERO
+                        .compareTo(position.averagePrice())
         );
 
         assertEquals(
                 0,
-                BigDecimal.ZERO.compareTo(position.totalCost())
+                BigDecimal.ZERO
+                        .compareTo(position.totalCost())
         );
     }
 
     @Test
     void shouldThrowExceptionWhenSellExceedsAvailablePosition() {
+
+        Portfolio portfolio = new Portfolio();
 
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
@@ -231,8 +257,8 @@ class PositionServiceTest {
                 LocalDate.of(2026, 9, 2)
         );
 
-        when(portfolioRepository.existsById(1L))
-                .thenReturn(true);
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
 
         when(transactionRepository
                 .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
@@ -240,24 +266,37 @@ class PositionServiceTest {
 
         assertThrows(
                 InsufficientPositionException.class,
-                () -> positionService.calculatePositions(1L)
+                () -> positionService.calculatePositions(
+                        1L,
+                        USER_ID
+                )
         );
     }
 
     @Test
     void shouldThrowExceptionWhenPortfolioDoesNotExist() {
 
-        when(portfolioRepository.existsById(999L))
-                .thenReturn(false);
+        when(portfolioRepository.findByIdAndUserId(999L, USER_ID))
+                .thenReturn(Optional.empty());
 
         assertThrows(
                 PortfolioNotFoundException.class,
-                () -> positionService.calculatePositions(999L)
+                () -> positionService.calculatePositions(
+                        999L,
+                        USER_ID
+                )
         );
+
+        verify(portfolioRepository)
+                .findByIdAndUserId(999L, USER_ID);
+
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
     void shouldCalculateMarketPosition() {
+
+        Portfolio portfolio = new Portfolio();
 
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
@@ -271,8 +310,8 @@ class PositionServiceTest {
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(portfolioRepository.existsById(1L))
-                .thenReturn(true);
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
 
         when(transactionRepository
                 .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
@@ -282,9 +321,13 @@ class PositionServiceTest {
                 .thenReturn(new BigDecimal("42.00"));
 
         List<PositionMarketResponse> positions =
-                positionService.calculateMarketPositions(1L);
+                positionService.calculateMarketPositions(
+                        1L,
+                        USER_ID
+                );
 
-        PositionMarketResponse position = positions.getFirst();
+        PositionMarketResponse position =
+                positions.getFirst();
 
         assertEquals(
                 0,
@@ -307,12 +350,16 @@ class PositionServiceTest {
         assertEquals(
                 0,
                 new BigDecimal("20.0000")
-                        .compareTo(position.profitabilityPercent())
+                        .compareTo(
+                                position.profitabilityPercent()
+                        )
         );
     }
 
     @Test
     void shouldNotRequestQuoteForZeroPosition() {
+
+        Portfolio portfolio = new Portfolio();
 
         Asset asset = new Asset();
         asset.setTicker("ITUB4");
@@ -335,18 +382,42 @@ class PositionServiceTest {
                 LocalDate.of(2026, 9, 2)
         );
 
-        when(portfolioRepository.existsById(1L))
-                .thenReturn(true);
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
 
         when(transactionRepository
                 .findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
                 .thenReturn(List.of(buy, sell));
 
         List<PositionMarketResponse> positions =
-                positionService.calculateMarketPositions(1L);
+                positionService.calculateMarketPositions(
+                        1L,
+                        USER_ID
+                );
 
         assertEquals(0, positions.size());
 
+        verifyNoInteractions(quoteService);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenPortfolioBelongsToAnotherUser() {
+
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                PortfolioNotFoundException.class,
+                () -> positionService.calculatePositions(
+                        1L,
+                        USER_ID
+                )
+        );
+
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
+        verifyNoInteractions(transactionRepository);
         verifyNoInteractions(quoteService);
     }
 }

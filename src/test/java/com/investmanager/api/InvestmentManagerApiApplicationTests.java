@@ -7,7 +7,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@SpringBootTest(properties = "brapi.token=test-token")
+@SpringBootTest(properties = {
+		"brapi.token=test-token",
+		"jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+		"jwt.expiration=3600000"
+})
 @Testcontainers
 class InvestmentManagerApiApplicationTests {
 

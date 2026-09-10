@@ -1,14 +1,14 @@
 package com.investmanager.api.transaction.service;
 
 import com.investmanager.api.asset.Asset;
+import com.investmanager.api.asset.exception.AssetNotFoundException;
 import com.investmanager.api.asset.repository.AssetRepository;
 import com.investmanager.api.broker.Broker;
 import com.investmanager.api.broker.exception.BrokerNotFoundException;
 import com.investmanager.api.broker.repository.BrokerRepository;
 import com.investmanager.api.portfolio.Portfolio;
-import com.investmanager.api.portfolio.repository.PortfolioRepository;
-import com.investmanager.api.asset.exception.AssetNotFoundException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
+import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.position.dto.PositionResponse;
 import com.investmanager.api.position.exception.InsufficientPositionException;
 import com.investmanager.api.position.service.PositionService;
@@ -37,6 +37,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
+
+    private static final Long USER_ID = 2L;
 
     @Mock
     private TransactionRepository transactionRepository;
@@ -91,7 +93,7 @@ class TransactionServiceTest {
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(portfolioRepository.findById(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
                 .thenReturn(Optional.of(portfolio));
 
         when(assetRepository.findById(1L))
@@ -118,8 +120,8 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
-                1L,              // brokerId
-                "XP Investimentos",     // brokerName
+                1L,
+                "XP Investimentos",
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
@@ -130,15 +132,17 @@ class TransactionServiceTest {
                 .thenReturn(expectedResponse);
 
         TransactionResponse result =
-                transactionService.create(request);
+                transactionService.create(request, USER_ID);
 
         assertEquals(expectedResponse, result);
 
-        verify(portfolioRepository).findById(1L);
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
         verify(assetRepository).findById(1L);
+        verify(brokerRepository).findById(1L);
         verify(transactionRepository).save(any(Transaction.class));
         verify(transactionMapper).toResponse(savedTransaction);
-        verify(brokerRepository).findById(1L);
     }
 
     @Test
@@ -154,18 +158,49 @@ class TransactionServiceTest {
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(portfolioRepository.findById(999L))
+        when(portfolioRepository.findByIdAndUserId(999L, USER_ID))
                 .thenReturn(Optional.empty());
 
         assertThrows(
                 PortfolioNotFoundException.class,
-                () -> transactionService.create(request)
+                () -> transactionService.create(request, USER_ID)
         );
 
-        verify(portfolioRepository).findById(999L);
+        verify(portfolioRepository)
+                .findByIdAndUserId(999L, USER_ID);
+
         verifyNoInteractions(assetRepository);
         verifyNoInteractions(transactionRepository);
         verifyNoInteractions(brokerRepository);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenPortfolioBelongsToAnotherUser() {
+
+        TransactionRequest request = new TransactionRequest(
+                1L,
+                1L,
+                1L,
+                TransactionType.BUY,
+                new BigDecimal("100"),
+                new BigDecimal("35.50"),
+                LocalDate.of(2026, 9, 1)
+        );
+
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                PortfolioNotFoundException.class,
+                () -> transactionService.create(request, USER_ID)
+        );
+
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
+        verifyNoInteractions(assetRepository);
+        verifyNoInteractions(brokerRepository);
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -183,7 +218,7 @@ class TransactionServiceTest {
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(portfolioRepository.findById(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
                 .thenReturn(Optional.of(portfolio));
 
         when(assetRepository.findById(999L))
@@ -191,10 +226,12 @@ class TransactionServiceTest {
 
         assertThrows(
                 AssetNotFoundException.class,
-                () -> transactionService.create(request)
+                () -> transactionService.create(request, USER_ID)
         );
 
-        verify(portfolioRepository).findById(1L);
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
         verify(assetRepository).findById(999L);
         verifyNoInteractions(transactionRepository);
         verifyNoInteractions(brokerRepository);
@@ -218,41 +255,47 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
-                1L,              // brokerId
-                "XP Investimentos",     // brokerName
+                1L,
+                "XP Investimentos",
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(transactionRepository.findById(1L))
+        when(transactionRepository
+                .findByIdAndPortfolioUserId(1L, USER_ID))
                 .thenReturn(Optional.of(transaction));
 
         when(transactionMapper.toResponse(transaction))
                 .thenReturn(expectedResponse);
 
         TransactionResponse result =
-                transactionService.findById(1L);
+                transactionService.findById(1L, USER_ID);
 
         assertEquals(expectedResponse, result);
 
-        verify(transactionRepository).findById(1L);
+        verify(transactionRepository)
+                .findByIdAndPortfolioUserId(1L, USER_ID);
+
         verify(transactionMapper).toResponse(transaction);
     }
 
     @Test
     void shouldThrowExceptionWhenTransactionNotFound() {
 
-        when(transactionRepository.findById(999L))
+        when(transactionRepository
+                .findByIdAndPortfolioUserId(999L, USER_ID))
                 .thenReturn(Optional.empty());
 
         assertThrows(
                 TransactionNotFoundException.class,
-                () -> transactionService.findById(999L)
+                () -> transactionService.findById(999L, USER_ID)
         );
 
-        verify(transactionRepository).findById(999L);
+        verify(transactionRepository)
+                .findByIdAndPortfolioUserId(999L, USER_ID);
+
         verifyNoInteractions(transactionMapper);
     }
 
@@ -274,35 +317,39 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
-                1L,              // brokerId
-                "XP Investimentos",     // brokerName
+                1L,
+                "XP Investimentos",
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(transactionRepository.findAll())
+        when(transactionRepository.findAllByPortfolioUserId(USER_ID))
                 .thenReturn(List.of(transaction));
 
         when(transactionMapper.toResponse(transaction))
                 .thenReturn(response);
 
         List<TransactionResponse> result =
-                transactionService.findAll();
+                transactionService.findAll(USER_ID);
 
         assertEquals(1, result.size());
         assertEquals(response, result.getFirst());
 
-        verify(transactionRepository).findAll();
+        verify(transactionRepository)
+                .findAllByPortfolioUserId(USER_ID);
+
         verify(transactionMapper).toResponse(transaction);
     }
 
     @Test
     void shouldFindTransactionsByPortfolioId() {
 
+        Portfolio portfolio = new Portfolio();
+
         Transaction transaction = new Transaction(
-                new Portfolio(),
+                portfolio,
                 new Asset(),
                 new Broker(),
                 TransactionType.BUY,
@@ -316,27 +363,42 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
-                1L,              // brokerId
-                "XP Investimentos",     // brokerName
+                1L,
+                "XP Investimentos",
                 TransactionType.BUY,
                 new BigDecimal("100"),
                 new BigDecimal("35.50"),
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(transactionRepository.findByPortfolioIdOrderByTransactionDateAscIdAsc(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
+
+        when(transactionRepository
+                .findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(
+                        1L,
+                        USER_ID
+                ))
                 .thenReturn(List.of(transaction));
 
         when(transactionMapper.toResponse(transaction))
                 .thenReturn(response);
 
         List<TransactionResponse> result =
-                transactionService.findByPortfolioId(1L);
+                transactionService.findByPortfolioId(1L, USER_ID);
 
         assertEquals(1, result.size());
         assertEquals(response, result.getFirst());
 
-        verify(transactionRepository).findByPortfolioIdOrderByTransactionDateAscIdAsc(1L);
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
+        verify(transactionRepository)
+                .findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(
+                        1L,
+                        USER_ID
+                );
+
         verify(transactionMapper).toResponse(transaction);
     }
 
@@ -361,7 +423,7 @@ class TransactionServiceTest {
                 LocalDate.of(2026, 9, 4)
         );
 
-        when(portfolioRepository.findById(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
                 .thenReturn(Optional.of(portfolio));
 
         when(assetRepository.findById(1L))
@@ -383,7 +445,7 @@ class TransactionServiceTest {
 
         assertThrows(
                 InsufficientPositionException.class,
-                () -> transactionService.create(request)
+                () -> transactionService.create(request, USER_ID)
         );
 
         verify(transactionRepository, never())
@@ -413,7 +475,7 @@ class TransactionServiceTest {
                 LocalDate.of(2026, 9, 2)
         );
 
-        when(portfolioRepository.findById(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
                 .thenReturn(Optional.of(portfolio));
 
         when(assetRepository.findById(1L))
@@ -451,8 +513,8 @@ class TransactionServiceTest {
                 null,
                 null,
                 "ITUB4",
-                1L,              // brokerId
-                "XP Investimentos",     // brokerName
+                1L,
+                "XP Investimentos",
                 TransactionType.SELL,
                 new BigDecimal("50"),
                 new BigDecimal("45.00"),
@@ -462,7 +524,8 @@ class TransactionServiceTest {
         when(transactionMapper.toResponse(savedTransaction))
                 .thenReturn(expectedResponse);
 
-        TransactionResponse result = transactionService.create(request);
+        TransactionResponse result =
+                transactionService.create(request, USER_ID);
 
         assertEquals(expectedResponse, result);
 
@@ -488,7 +551,7 @@ class TransactionServiceTest {
                 LocalDate.of(2026, 9, 1)
         );
 
-        when(portfolioRepository.findById(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
                 .thenReturn(Optional.of(portfolio));
 
         when(assetRepository.findById(1L))
@@ -499,7 +562,7 @@ class TransactionServiceTest {
 
         assertThrows(
                 BrokerNotFoundException.class,
-                () -> transactionService.create(request)
+                () -> transactionService.create(request, USER_ID)
         );
 
         verify(brokerRepository).findById(999L);

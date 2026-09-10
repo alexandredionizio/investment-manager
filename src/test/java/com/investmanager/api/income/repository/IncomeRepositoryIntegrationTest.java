@@ -7,6 +7,8 @@ import com.investmanager.api.income.Income;
 import com.investmanager.api.income.IncomeType;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
+import com.investmanager.api.user.entity.User;
+import com.investmanager.api.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -41,12 +43,24 @@ class IncomeRepositoryIntegrationTest {
     @Autowired
     private AssetRepository assetRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @Test
     void shouldSaveAndFindIncome() {
 
+        User user = userRepository.save(
+                new User(
+                        "Usuario Teste",
+                        "usuario1@email.com",
+                        "senha123"
+                )
+        );
+
         Portfolio portfolio = new Portfolio(
                 "Carteira Teste",
-                "Carteira para teste de proventos"
+                "Carteira para teste de proventos",
+                user
         );
 
         Portfolio savedPortfolio =
@@ -82,16 +96,19 @@ class IncomeRepositoryIntegrationTest {
         Income found = foundIncome.get();
 
         assertEquals(IncomeType.DIVIDEND, found.getType());
+
         assertEquals(
                 0,
                 new BigDecimal("0.50")
                         .compareTo(found.getAmountPerUnit())
         );
+
         assertEquals(
                 0,
                 new BigDecimal("100")
                         .compareTo(found.getQuantity())
         );
+
         assertEquals(
                 LocalDate.of(2026, 9, 3),
                 found.getPaymentDate()
@@ -111,9 +128,18 @@ class IncomeRepositoryIntegrationTest {
     @Test
     void shouldFindIncomesByPortfolioIdOrderedByPaymentDateAndId() {
 
+        User user = userRepository.save(
+                new User(
+                        "Usuario Teste",
+                        "usuario2@email.com",
+                        "senha123"
+                )
+        );
+
         Portfolio portfolio = new Portfolio(
                 "Carteira Teste",
-                "Carteira para testar ordenação de proventos"
+                "Carteira para testar ordenação de proventos",
+                user
         );
 
         Portfolio savedPortfolio =

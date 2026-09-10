@@ -6,6 +6,8 @@ import com.investmanager.api.portfolio.dto.PortfolioResponse;
 import com.investmanager.api.portfolio.mapper.PortfolioMapper;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
+import com.investmanager.api.user.entity.User;
+import com.investmanager.api.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,37 +16,54 @@ import java.util.List;
 public class PortfolioService {
 
     private final PortfolioRepository portfolioRepository;
-
     private final PortfolioMapper portfolioMapper;
+    private final UserRepository userRepository;
 
     public PortfolioService(
             PortfolioRepository portfolioRepository,
-            PortfolioMapper portfolioMapper) {
+            PortfolioMapper portfolioMapper,
+            UserRepository userRepository) {
 
         this.portfolioRepository = portfolioRepository;
         this.portfolioMapper = portfolioMapper;
+        this.userRepository = userRepository;
     }
 
-    public PortfolioResponse create (CreatePortfolioRequest request) {
+    public PortfolioResponse create(
+            CreatePortfolioRequest request,
+            Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Usuário não encontrado"));
 
         Portfolio portfolio = portfolioMapper.toEntity(request);
 
-        Portfolio savedPortfolio = portfolioRepository.save(portfolio);
+        portfolio.setUser(user);
+
+        Portfolio savedPortfolio =
+                portfolioRepository.save(portfolio);
 
         return portfolioMapper.toResponse(savedPortfolio);
     }
 
-    public PortfolioResponse findById(Long id) {
+    public PortfolioResponse findById(
+            Long id,
+            Long userId) {
 
-        Portfolio portfolio = portfolioRepository.findById(id)
-                .orElseThrow(() -> new PortfolioNotFoundException(id));
+        Portfolio portfolio =
+                portfolioRepository
+                        .findByIdAndUserId(id, userId)
+                        .orElseThrow(() ->
+                                new PortfolioNotFoundException(id));
 
         return portfolioMapper.toResponse(portfolio);
     }
 
-    public List<PortfolioResponse> findAll() {
+    public List<PortfolioResponse> findAll(Long userId) {
 
-        return portfolioRepository.findAll()
+        return portfolioRepository
+                .findAllByUserId(userId)
                 .stream()
                 .map(portfolioMapper::toResponse)
                 .toList();

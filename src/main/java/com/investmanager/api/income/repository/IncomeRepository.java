@@ -1,13 +1,28 @@
 package com.investmanager.api.income.repository;
 
 import com.investmanager.api.income.Income;
-import com.investmanager.api.portfolio.Portfolio;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.w3c.dom.stylesheets.LinkStyle;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface IncomeRepository extends JpaRepository<Income, Long> {
 
-    List<Income> findByPortfolioIdOrderByPaymentDateAscIdAsc(Long portfolio);
+    List<Income> findByPortfolioIdOrderByPaymentDateAscIdAsc(
+            Long portfolioId
+    );
+
+    Optional<Income> findByIdAndPortfolioUserId(
+            Long id,
+            Long userId
+    );
+
+    List<Income> findAllByPortfolioUserId(
+            Long userId
+    );
+
+    List<Income> findByPortfolioIdAndPortfolioUserIdOrderByPaymentDateAscIdAsc(
+            Long portfolioId,
+            Long userId
+    );
 }

@@ -1,13 +1,12 @@
 package com.investmanager.api.transaction.controller;
 
-import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.transaction.dto.TransactionRequest;
 import com.investmanager.api.transaction.dto.TransactionResponse;
-import com.investmanager.api.transaction.repository.TransactionRepository;
 import com.investmanager.api.transaction.service.TransactionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,15 +17,21 @@ public class TransactionController {
 
     private final TransactionService transactionService;
 
-    public TransactionController(TransactionService transactionService) {
+    public TransactionController(
+            TransactionService transactionService) {
         this.transactionService = transactionService;
     }
 
     @PostMapping
     public ResponseEntity<TransactionResponse> create(
-            @Valid @RequestBody TransactionRequest request) {
+            @Valid @RequestBody TransactionRequest request,
+            Authentication authentication) {
 
-        TransactionResponse response = transactionService.create(request);
+        Long userId =
+                Long.valueOf(authentication.getName());
+
+        TransactionResponse response =
+                transactionService.create(request, userId);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -34,28 +39,45 @@ public class TransactionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TransactionResponse> fundById(@PathVariable Long id) {
+    public ResponseEntity<TransactionResponse> findById(
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        TransactionResponse response = transactionService.findById(id);
+        Long userId =
+                Long.valueOf(authentication.getName());
+
+        TransactionResponse response =
+                transactionService.findById(id, userId);
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
-    public ResponseEntity<List<TransactionResponse>> findAll() {
+    public ResponseEntity<List<TransactionResponse>> findAll(
+            Authentication authentication) {
+
+        Long userId =
+                Long.valueOf(authentication.getName());
 
         List<TransactionResponse> transactions =
-                transactionService.findAll();
+                transactionService.findAll(userId);
 
         return ResponseEntity.ok(transactions);
     }
 
     @GetMapping("/portfolio/{portfolioId}")
     public ResponseEntity<List<TransactionResponse>> listByPortfolio(
-            @PathVariable Long portfolioId) {
+            @PathVariable Long portfolioId,
+            Authentication authentication) {
+
+        Long userId =
+                Long.valueOf(authentication.getName());
 
         List<TransactionResponse> transactions =
-                transactionService.findByPortfolioId(portfolioId);
+                transactionService.findByPortfolioId(
+                        portfolioId,
+                        userId
+                );
 
         return ResponseEntity.ok(transactions);
     }

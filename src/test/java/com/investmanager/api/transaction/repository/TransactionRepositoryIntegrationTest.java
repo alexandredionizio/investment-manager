@@ -7,6 +7,8 @@ import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.transaction.Transaction;
 import com.investmanager.api.transaction.TransactionType;
+import com.investmanager.api.user.entity.User;
+import com.investmanager.api.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -41,12 +43,24 @@ class TransactionRepositoryIntegrationTest {
     @Autowired
     private AssetRepository assetRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @Test
     void shouldSaveAndFindTransaction() {
 
+        User user = userRepository.save(
+                new User(
+                        "Usuario Teste",
+                        "usuario1@email.com",
+                        "senha123"
+                )
+        );
+
         Portfolio portfolio = new Portfolio(
                 "Carteira Teste",
-                "Carteira criada no teste de integração"
+                "Carteira criada no teste de integração",
+                user
         );
 
         Portfolio savedPortfolio =
@@ -81,26 +95,51 @@ class TransactionRepositoryIntegrationTest {
 
         Transaction found = foundTransaction.get();
 
-        assertEquals(TransactionType.BUY, found.getType());
-        assertEquals(new BigDecimal("100"), found.getQuantity());
-        assertEquals(new BigDecimal("35.50"), found.getUnitPrice());
+        assertEquals(
+                TransactionType.BUY,
+                found.getType()
+        );
 
-        assertEquals("Carteira Teste",
-                found.getPortfolio().getName());
+        assertEquals(
+                new BigDecimal("100"),
+                found.getQuantity()
+        );
 
-        assertEquals("BBAS3",
-                found.getAsset().getTicker());
+        assertEquals(
+                new BigDecimal("35.50"),
+                found.getUnitPrice()
+        );
+
+        assertEquals(
+                "Carteira Teste",
+                found.getPortfolio().getName()
+        );
+
+        assertEquals(
+                "BBAS3",
+                found.getAsset().getTicker()
+        );
     }
 
     @Test
     void shouldFindTransactionsByPortfolioId() {
 
-        Portfolio portfolio = new Portfolio(
-                "Carteira Teste",
-                "Carteira para testar consulta"
+        User user = userRepository.save(
+                new User(
+                        "Usuario Teste",
+                        "usuario2@email.com",
+                        "senha123"
+                )
         );
 
-        Portfolio savedPortfolio = portfolioRepository.save(portfolio);
+        Portfolio portfolio = new Portfolio(
+                "Carteira Teste",
+                "Carteira para testar consulta",
+                user
+        );
+
+        Portfolio savedPortfolio =
+                portfolioRepository.save(portfolio);
 
         Asset asset = new Asset();
         asset.setTicker("PETR4");
@@ -109,7 +148,8 @@ class TransactionRepositoryIntegrationTest {
         asset.setSector("Petróleo");
         asset.setExchange("B3");
 
-        Asset savedAsset = assetRepository.save(asset);
+        Asset savedAsset =
+                assetRepository.save(asset);
 
         Transaction transaction = new Transaction(
                 savedPortfolio,
@@ -123,11 +163,16 @@ class TransactionRepositoryIntegrationTest {
         transactionRepository.save(transaction);
 
         List<Transaction> transactions =
-                transactionRepository.findByPortfolioIdOrderByTransactionDateAscIdAsc(savedPortfolio.getId());
+                transactionRepository
+                        .findByPortfolioIdOrderByTransactionDateAscIdAsc(
+                                savedPortfolio.getId()
+                        );
 
         assertEquals(1, transactions.size());
-        assertEquals("PETR4", transactions.getFirst().getAsset().getTicker());
+
+        assertEquals(
+                "PETR4",
+                transactions.getFirst().getAsset().getTicker()
+        );
     }
-
-
 }

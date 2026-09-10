@@ -22,9 +22,7 @@ import java.util.stream.Collectors;
 public class PositionService {
 
     private final TransactionRepository transactionRepository;
-
     private final PortfolioRepository portfolioRepository;
-
     private final QuoteService quoteService;
 
     public PositionService(
@@ -37,18 +35,29 @@ public class PositionService {
         this.quoteService = quoteService;
     }
 
-    public List<PositionResponse> calculatePositions(Long portfolioId) {
+    public List<PositionResponse> calculatePositions(
+            Long portfolioId,
+            Long userId) {
 
-        if (!portfolioRepository.existsById(portfolioId)) {
-            throw new PortfolioNotFoundException(portfolioId);
-        }
+        validatePortfolioOwnership(portfolioId, userId);
+
+        return calculatePositionsInternal(portfolioId);
+    }
+
+    private List<PositionResponse> calculatePositionsInternal(
+            Long portfolioId) {
 
         List<Transaction> transactions =
-                transactionRepository.findByPortfolioIdOrderByTransactionDateAscIdAsc(portfolioId);
+                transactionRepository
+                        .findByPortfolioIdOrderByTransactionDateAscIdAsc(
+                                portfolioId
+                        );
 
         Map<Asset, List<Transaction>> transactionsByAsset =
                 transactions.stream()
-                        .collect(Collectors.groupingBy(Transaction::getAsset));
+                        .collect(Collectors.groupingBy(
+                                Transaction::getAsset
+                        ));
 
         return transactionsByAsset.entrySet()
                 .stream()
@@ -63,38 +72,58 @@ public class PositionService {
 
     private PositionResponse calculatePosition(
             Asset asset,
-            List<Transaction> transactions){
+            List<Transaction> transactions) {
 
         BigDecimal quantity = BigDecimal.ZERO;
         BigDecimal totalCost = BigDecimal.ZERO;
 
-        for (Transaction transaction: transactions) {
+        for (Transaction transaction : transactions) {
 
             if (transaction.getType() == TransactionType.BUY) {
 
                 BigDecimal purchaseCost =
                         transaction.getQuantity()
-                                .multiply(transaction.getUnitPrice());
+                                .multiply(
+                                        transaction.getUnitPrice()
+                                );
 
-                quantity = quantity.add(transaction.getQuantity());
-                totalCost = totalCost.add(purchaseCost);
+                quantity =
+                        quantity.add(
+                                transaction.getQuantity()
+                        );
+
+                totalCost =
+                        totalCost.add(purchaseCost);
             }
 
             if (transaction.getType() == TransactionType.SELL) {
 
-                if (transaction.getQuantity().compareTo(quantity) > 0 ) {
-                    throw new InsufficientPositionException(asset.getTicker());
+                if (transaction.getQuantity()
+                        .compareTo(quantity) > 0) {
+
+                    throw new InsufficientPositionException(
+                            asset.getTicker()
+                    );
                 }
 
                 BigDecimal averagePrice =
-                        totalCost.divide(quantity, 2, RoundingMode.HALF_UP);
+                        totalCost.divide(
+                                quantity,
+                                2,
+                                RoundingMode.HALF_UP
+                        );
 
                 BigDecimal soldCost =
                         transaction.getQuantity()
                                 .multiply(averagePrice);
 
-                quantity = quantity.subtract(transaction.getQuantity());
-                totalCost = totalCost.subtract(soldCost);
+                quantity =
+                        quantity.subtract(
+                                transaction.getQuantity()
+                        );
+
+                totalCost =
+                        totalCost.subtract(soldCost);
 
                 if (quantity.compareTo(BigDecimal.ZERO) == 0) {
                     totalCost = BigDecimal.ZERO;
@@ -105,11 +134,13 @@ public class PositionService {
         BigDecimal averagePrice = BigDecimal.ZERO;
 
         if (quantity.compareTo(BigDecimal.ZERO) > 0) {
-            averagePrice = totalCost.divide(
-                    quantity,
-                    2,
-                    RoundingMode.HALF_UP
-            );
+
+            averagePrice =
+                    totalCost.divide(
+                            quantity,
+                            2,
+                            RoundingMode.HALF_UP
+                    );
         }
 
         return new PositionResponse(
@@ -125,17 +156,22 @@ public class PositionService {
             Long portfolioId,
             Long assetId) {
 
-        return calculatePositions(portfolioId)
+        return calculatePositionsInternal(portfolioId)
                 .stream()
-                .filter(position -> position.assetId().equals(assetId))
+                .filter(position ->
+                        position.assetId().equals(assetId)
+                )
                 .findFirst()
                 .orElse(null);
     }
 
     public List<PositionMarketResponse> calculateMarketPositions(
-            Long portfolioId) {
+            Long portfolioId,
+            Long userId) {
 
-        return calculatePositions(portfolioId)
+        validatePortfolioOwnership(portfolioId, userId);
+
+        return calculatePositionsInternal(portfolioId)
                 .stream()
                 .filter(position ->
                         position.quantity()
@@ -165,7 +201,9 @@ public class PositionService {
 
                         profitabilityPercent =
                                 profitLoss
-                                        .multiply(BigDecimal.valueOf(100))
+                                        .multiply(
+                                                BigDecimal.valueOf(100)
+                                        )
                                         .divide(
                                                 position.totalCost(),
                                                 4,
@@ -186,5 +224,17 @@ public class PositionService {
                     );
                 })
                 .toList();
+    }
+
+    private void validatePortfolioOwnership(
+            Long portfolioId,
+            Long userId) {
+
+        portfolioRepository
+                .findByIdAndUserId(portfolioId, userId)
+                .orElseThrow(() ->
+                        new PortfolioNotFoundException(
+                                portfolioId
+                        ));
     }
 }

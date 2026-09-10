@@ -1,13 +1,16 @@
 package com.investmanager.api.shared.exception;
 
 import com.investmanager.api.asset.exception.AssetNotFoundException;
+import com.investmanager.api.auth.exception.InvalidCredentialsException;
 import com.investmanager.api.broker.exception.BrokerNotFoundException;
 import com.investmanager.api.income.exception.IncomeNotFoundException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.position.exception.InsufficientPositionException;
 import com.investmanager.api.quote.exception.QuoteNotFoundException;
 import com.investmanager.api.transaction.exception.TransactionNotFoundException;
+import com.investmanager.api.user.exception.UserAlreadyExistsException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -122,5 +125,25 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<?> handleInvalidCredentialsException(
+            InvalidCredentialsException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, Object> handleUserAlreadyExistsException(
+            UserAlreadyExistsException exception) {
+
+        return Map.of(
+                "status", HttpStatus.CONFLICT.value(),
+                "error", "Conflito",
+                "message", exception.getMessage()
+        );
+    }
 
 }

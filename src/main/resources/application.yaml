@@ -22,3 +22,7 @@ spring:
 
 brapi:
   token: ${BRAPI_TOKEN}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 3600000

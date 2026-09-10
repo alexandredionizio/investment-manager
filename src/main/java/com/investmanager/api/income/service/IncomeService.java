@@ -37,17 +37,26 @@ public class IncomeService {
         this.incomeMapper = incomeMapper;
     }
 
-    public IncomeResponse create (IncomeRequest request) {
+    public IncomeResponse create(
+            IncomeRequest request,
+            Long userId) {
 
         Portfolio portfolio = portfolioRepository
-                .findById(request.portfolioId())
+                .findByIdAndUserId(
+                        request.portfolioId(),
+                        userId
+                )
                 .orElseThrow(() ->
-                        new PortfolioNotFoundException(request.portfolioId()));
+                        new PortfolioNotFoundException(
+                                request.portfolioId()
+                        ));
 
         Asset asset = assetRepository
                 .findById(request.assetId())
                 .orElseThrow(() ->
-                        new AssetNotFoundException(request.assetId()));
+                        new AssetNotFoundException(
+                                request.assetId()
+                        ));
 
         Income income = new Income(
                 portfolio,
@@ -58,34 +67,50 @@ public class IncomeService {
                 request.paymentDate()
         );
 
-        Income savedIncome = incomeRepository.save(income);
+        Income savedIncome =
+                incomeRepository.save(income);
 
         return incomeMapper.toResponse(savedIncome);
     }
 
     @Transactional(readOnly = true)
-    public IncomeResponse findById(Long id) {
+    public IncomeResponse findById(
+            Long id,
+            Long userId) {
 
         Income income = incomeRepository
-                .findById(id)
-                .orElseThrow(() -> new IncomeNotFoundException(id));
+                .findByIdAndPortfolioUserId(id, userId)
+                .orElseThrow(() ->
+                        new IncomeNotFoundException(id));
 
         return incomeMapper.toResponse(income);
     }
 
     @Transactional(readOnly = true)
-    public List<IncomeResponse> findAll() {
+    public List<IncomeResponse> findAll(Long userId) {
+
         return incomeRepository
-                .findAll()
+                .findAllByPortfolioUserId(userId)
                 .stream()
                 .map(incomeMapper::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<IncomeResponse> findByPortfolioId(Long portfolioid) {
+    public List<IncomeResponse> findByPortfolioId(
+            Long portfolioId,
+            Long userId) {
+
+        portfolioRepository
+                .findByIdAndUserId(portfolioId, userId)
+                .orElseThrow(() ->
+                        new PortfolioNotFoundException(portfolioId));
+
         return incomeRepository
-                .findByPortfolioIdOrderByPaymentDateAscIdAsc(portfolioid)
+                .findByPortfolioIdAndPortfolioUserIdOrderByPaymentDateAscIdAsc(
+                        portfolioId,
+                        userId
+                )
                 .stream()
                 .map(incomeMapper::toResponse)
                 .toList();

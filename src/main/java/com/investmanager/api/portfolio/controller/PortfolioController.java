@@ -2,13 +2,11 @@ package com.investmanager.api.portfolio.controller;
 
 import com.investmanager.api.portfolio.dto.CreatePortfolioRequest;
 import com.investmanager.api.portfolio.dto.PortfolioResponse;
-import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.portfolio.service.PortfolioService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.security.core.Authentication;
 import java.util.List;
 
 @RestController
@@ -24,20 +22,30 @@ public class PortfolioController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PortfolioResponse create(
-            @Valid @RequestBody CreatePortfolioRequest request) {
+            @Valid @RequestBody CreatePortfolioRequest request,
+            Authentication authentication) {
 
-        return portfolioService.create(request);
+        Long userId = Long.valueOf(authentication.getName());
+
+        return portfolioService.create(request, userId);
     }
 
     @GetMapping("/{id}")
-    public PortfolioResponse findById(@PathVariable Long id) {
+    public PortfolioResponse findById(
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        return portfolioService.findById(id);
+        Long userId = Long.valueOf(authentication.getName());
+
+        return portfolioService.findById(id, userId);
     }
 
     @GetMapping
-    public List<PortfolioResponse> findAll() {
+    public List<PortfolioResponse> findAll(
+            Authentication authentication) {
 
-        return portfolioService.findAll();
+        Long userId = Long.valueOf(authentication.getName());
+
+        return portfolioService.findAll(userId);
     }
 }

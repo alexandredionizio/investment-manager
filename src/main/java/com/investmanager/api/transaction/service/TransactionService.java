@@ -1,14 +1,14 @@
 package com.investmanager.api.transaction.service;
 
 import com.investmanager.api.asset.Asset;
+import com.investmanager.api.asset.exception.AssetNotFoundException;
 import com.investmanager.api.asset.repository.AssetRepository;
 import com.investmanager.api.broker.Broker;
 import com.investmanager.api.broker.exception.BrokerNotFoundException;
 import com.investmanager.api.broker.repository.BrokerRepository;
 import com.investmanager.api.portfolio.Portfolio;
-import com.investmanager.api.portfolio.repository.PortfolioRepository;
-import com.investmanager.api.asset.exception.AssetNotFoundException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
+import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.position.dto.PositionResponse;
 import com.investmanager.api.position.exception.InsufficientPositionException;
 import com.investmanager.api.position.service.PositionService;
@@ -50,22 +50,33 @@ public class TransactionService {
         this.positionService = positionService;
     }
 
-    public TransactionResponse create(TransactionRequest request) {
+    public TransactionResponse create(
+            TransactionRequest request,
+            Long userId) {
 
         Portfolio portfolio = portfolioRepository
-                .findById(request.portfolioId())
-                        .orElseThrow(() ->
-                                new PortfolioNotFoundException(request.portfolioId()));
+                .findByIdAndUserId(
+                        request.portfolioId(),
+                        userId
+                )
+                .orElseThrow(() ->
+                        new PortfolioNotFoundException(
+                                request.portfolioId()
+                        ));
 
         Asset asset = assetRepository
                 .findById(request.assetId())
                 .orElseThrow(() ->
-                        new AssetNotFoundException(request.assetId()));
+                        new AssetNotFoundException(
+                                request.assetId()
+                        ));
 
         Broker broker = brokerRepository
                 .findById(request.brokerId())
                 .orElseThrow(() ->
-                        new BrokerNotFoundException(request.brokerId()));
+                        new BrokerNotFoundException(
+                                request.brokerId()
+                        ));
 
         if (request.type() == TransactionType.SELL) {
 
@@ -80,8 +91,12 @@ public class TransactionService {
                             ? BigDecimal.ZERO
                             : currentPosition.quantity();
 
-            if (request.quantity().compareTo(availableQuantity) > 0) {
-                throw new InsufficientPositionException(asset.getTicker());
+            if (request.quantity()
+                    .compareTo(availableQuantity) > 0) {
+
+                throw new InsufficientPositionException(
+                        asset.getTicker()
+                );
             }
         }
 
@@ -101,31 +116,43 @@ public class TransactionService {
         return transactionMapper.toResponse(savedTransaction);
     }
 
-    public TransactionResponse findById(Long id) {
+    public TransactionResponse findById(
+            Long id,
+            Long userId) {
 
         Transaction transaction = transactionRepository
-                .findById(id)
-                .orElseThrow(() -> new TransactionNotFoundException(id));
+                .findByIdAndPortfolioUserId(id, userId)
+                .orElseThrow(() ->
+                        new TransactionNotFoundException(id));
 
         return transactionMapper.toResponse(transaction);
     }
 
-    public List<TransactionResponse> findAll() {
+    public List<TransactionResponse> findAll(Long userId) {
 
         return transactionRepository
-                .findAll()
+                .findAllByPortfolioUserId(userId)
                 .stream()
                 .map(transactionMapper::toResponse)
                 .toList();
     }
 
-    public List<TransactionResponse> findByPortfolioId(Long portfolioId) {
+    public List<TransactionResponse> findByPortfolioId(
+            Long portfolioId,
+            Long userId) {
+
+        portfolioRepository
+                .findByIdAndUserId(portfolioId, userId)
+                .orElseThrow(() ->
+                        new PortfolioNotFoundException(portfolioId));
 
         return transactionRepository
-                .findByPortfolioIdOrderByTransactionDateAscIdAsc(portfolioId)
+                .findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(
+                        portfolioId,
+                        userId
+                )
                 .stream()
                 .map(transactionMapper::toResponse)
                 .toList();
     }
-
 }

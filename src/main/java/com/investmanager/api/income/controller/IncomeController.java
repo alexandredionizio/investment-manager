@@ -6,6 +6,7 @@ import com.investmanager.api.income.service.IncomeService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,39 +22,59 @@ public class IncomeController {
     }
 
     @PostMapping
-    public ResponseEntity<IncomeResponse> create (
-            @Valid @RequestBody IncomeRequest request) {
+    public ResponseEntity<IncomeResponse> create(
+            @Valid @RequestBody IncomeRequest request,
+            Authentication authentication) {
 
-        IncomeResponse response = incomeService.create(request);
+        Long userId =
+                Long.valueOf(authentication.getName());
+
+        IncomeResponse response =
+                incomeService.create(request, userId);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
     }
 
-    @GetMapping({"/{id}"})
+    @GetMapping("/{id}")
     public ResponseEntity<IncomeResponse> findById(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        Long userId =
+                Long.valueOf(authentication.getName());
 
         return ResponseEntity.ok(
-                incomeService.findById(id)
+                incomeService.findById(id, userId)
         );
     }
 
     @GetMapping
-    public ResponseEntity<List<IncomeResponse>> findAll() {
+    public ResponseEntity<List<IncomeResponse>> findAll(
+            Authentication authentication) {
+
+        Long userId =
+                Long.valueOf(authentication.getName());
 
         return ResponseEntity.ok(
-                incomeService.findAll()
+                incomeService.findAll(userId)
         );
     }
 
-    @GetMapping ("/portfolio/{portfolioId}")
-    public ResponseEntity<List<IncomeResponse>> findByPortfolioId (
-            @PathVariable Long portfolioId) {
+    @GetMapping("/portfolio/{portfolioId}")
+    public ResponseEntity<List<IncomeResponse>> findByPortfolioId(
+            @PathVariable Long portfolioId,
+            Authentication authentication) {
+
+        Long userId =
+                Long.valueOf(authentication.getName());
 
         return ResponseEntity.ok(
-                incomeService.findByPortfolioId(portfolioId)
+                incomeService.findByPortfolioId(
+                        portfolioId,
+                        userId
+                )
         );
     }
 }

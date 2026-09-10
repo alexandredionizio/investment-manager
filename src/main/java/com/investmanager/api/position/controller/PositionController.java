@@ -4,6 +4,7 @@ import com.investmanager.api.position.dto.PositionMarketResponse;
 import com.investmanager.api.position.dto.PositionResponse;
 import com.investmanager.api.position.service.PositionService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,20 +23,34 @@ public class PositionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<PositionResponse>> findPositions (
-            @PathVariable Long portfolioId) {
+    public ResponseEntity<List<PositionResponse>> findPositions(
+            @PathVariable Long portfolioId,
+            Authentication authentication) {
+
+        Long userId =
+                Long.valueOf(authentication.getName());
 
         return ResponseEntity.ok(
-                positionService.calculatePositions(portfolioId)
+                positionService.calculatePositions(
+                        portfolioId,
+                        userId
+                )
         );
     }
 
     @GetMapping("/market")
     public ResponseEntity<List<PositionMarketResponse>> findMarketPositions(
-            @PathVariable Long portfolioId) {
+            @PathVariable Long portfolioId,
+            Authentication authentication) {
+
+        Long userId =
+                Long.valueOf(authentication.getName());
 
         return ResponseEntity.ok(
-                positionService.calculateMarketPositions(portfolioId)
+                positionService.calculateMarketPositions(
+                        portfolioId,
+                        userId
+                )
         );
     }
 }

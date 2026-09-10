@@ -1,22 +1,23 @@
 package com.investmanager.api.income.service;
 
-import com.investmanager.api.asset.repository.AssetRepository;
-import com.investmanager.api.income.exception.IncomeNotFoundException;
-import com.investmanager.api.income.mapper.IncomeMapper;
-import com.investmanager.api.income.repository.IncomeRepository;
-import com.investmanager.api.portfolio.repository.PortfolioRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import com.investmanager.api.asset.Asset;
+import com.investmanager.api.asset.exception.AssetNotFoundException;
+import com.investmanager.api.asset.repository.AssetRepository;
 import com.investmanager.api.income.Income;
 import com.investmanager.api.income.IncomeType;
 import com.investmanager.api.income.dto.IncomeRequest;
 import com.investmanager.api.income.dto.IncomeResponse;
+import com.investmanager.api.income.exception.IncomeNotFoundException;
+import com.investmanager.api.income.mapper.IncomeMapper;
+import com.investmanager.api.income.repository.IncomeRepository;
 import com.investmanager.api.portfolio.Portfolio;
+import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
+import com.investmanager.api.portfolio.repository.PortfolioRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,17 +25,14 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import com.investmanager.api.asset.exception.AssetNotFoundException;
-
 @ExtendWith(MockitoExtension.class)
 class IncomeServiceTest {
+
+    private static final Long USER_ID = 2L;
 
     @Mock
     private IncomeRepository incomeRepository;
@@ -77,7 +75,7 @@ class IncomeServiceTest {
                 LocalDate.of(2026, 9, 3)
         );
 
-        when(portfolioRepository.findById(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
                 .thenReturn(Optional.of(portfolio));
 
         when(assetRepository.findById(1L))
@@ -110,14 +108,22 @@ class IncomeServiceTest {
         when(incomeMapper.toResponse(savedIncome))
                 .thenReturn(expectedResponse);
 
-        IncomeResponse result = incomeService.create(request);
+        IncomeResponse result =
+                incomeService.create(request, USER_ID);
 
         assertEquals(expectedResponse, result);
 
-        verify(portfolioRepository).findById(1L);
-        verify(assetRepository).findById(1L);
-        verify(incomeRepository).save(any(Income.class));
-        verify(incomeMapper).toResponse(savedIncome);
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
+        verify(assetRepository)
+                .findById(1L);
+
+        verify(incomeRepository)
+                .save(any(Income.class));
+
+        verify(incomeMapper)
+                .toResponse(savedIncome);
     }
 
     @Test
@@ -132,15 +138,17 @@ class IncomeServiceTest {
                 LocalDate.of(2026, 9, 3)
         );
 
-        when(portfolioRepository.findById(999L))
+        when(portfolioRepository.findByIdAndUserId(999L, USER_ID))
                 .thenReturn(Optional.empty());
 
         assertThrows(
                 PortfolioNotFoundException.class,
-                () -> incomeService.create(request)
+                () -> incomeService.create(request, USER_ID)
         );
 
-        verify(portfolioRepository).findById(999L);
+        verify(portfolioRepository)
+                .findByIdAndUserId(999L, USER_ID);
+
         verifyNoInteractions(assetRepository);
         verifyNoInteractions(incomeMapper);
 
@@ -162,7 +170,7 @@ class IncomeServiceTest {
                 LocalDate.of(2026, 9, 3)
         );
 
-        when(portfolioRepository.findById(1L))
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
                 .thenReturn(Optional.of(portfolio));
 
         when(assetRepository.findById(999L))
@@ -170,11 +178,14 @@ class IncomeServiceTest {
 
         assertThrows(
                 AssetNotFoundException.class,
-                () -> incomeService.create(request)
+                () -> incomeService.create(request, USER_ID)
         );
 
-        verify(portfolioRepository).findById(1L);
-        verify(assetRepository).findById(999L);
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
+        verify(assetRepository)
+                .findById(999L);
 
         verify(incomeRepository, never())
                 .save(any(Income.class));
@@ -206,32 +217,38 @@ class IncomeServiceTest {
                 LocalDate.of(2026, 9, 3)
         );
 
-        when(incomeRepository.findById(1L))
+        when(incomeRepository.findByIdAndPortfolioUserId(1L, USER_ID))
                 .thenReturn(Optional.of(income));
 
         when(incomeMapper.toResponse(income))
                 .thenReturn(expectedResponse);
 
-        IncomeResponse result = incomeService.findById(1L);
+        IncomeResponse result =
+                incomeService.findById(1L, USER_ID);
 
         assertEquals(expectedResponse, result);
 
-        verify(incomeRepository).findById(1L);
-        verify(incomeMapper).toResponse(income);
+        verify(incomeRepository)
+                .findByIdAndPortfolioUserId(1L, USER_ID);
+
+        verify(incomeMapper)
+                .toResponse(income);
     }
 
     @Test
     void shouldThrowExceptionWhenIncomeNotFound() {
 
-        when(incomeRepository.findById(999L))
+        when(incomeRepository.findByIdAndPortfolioUserId(999L, USER_ID))
                 .thenReturn(Optional.empty());
 
         assertThrows(
                 IncomeNotFoundException.class,
-                () -> incomeService.findById(999L)
+                () -> incomeService.findById(999L, USER_ID)
         );
 
-        verify(incomeRepository).findById(999L);
+        verify(incomeRepository)
+                .findByIdAndPortfolioUserId(999L, USER_ID);
+
         verifyNoInteractions(incomeMapper);
     }
 
@@ -259,27 +276,32 @@ class IncomeServiceTest {
                 LocalDate.of(2026, 9, 3)
         );
 
-        when(incomeRepository.findAll())
+        when(incomeRepository.findAllByPortfolioUserId(USER_ID))
                 .thenReturn(List.of(income));
 
         when(incomeMapper.toResponse(income))
                 .thenReturn(response);
 
         List<IncomeResponse> result =
-                incomeService.findAll();
+                incomeService.findAll(USER_ID);
 
         assertEquals(1, result.size());
         assertEquals(response, result.getFirst());
 
-        verify(incomeRepository).findAll();
-        verify(incomeMapper).toResponse(income);
+        verify(incomeRepository)
+                .findAllByPortfolioUserId(USER_ID);
+
+        verify(incomeMapper)
+                .toResponse(income);
     }
 
     @Test
     void shouldFindIncomesByPortfolioId() {
 
+        Portfolio portfolio = new Portfolio();
+
         Income income = new Income(
-                new Portfolio(),
+                portfolio,
                 new Asset(),
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
@@ -299,22 +321,63 @@ class IncomeServiceTest {
                 LocalDate.of(2026, 9, 3)
         );
 
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
+
         when(incomeRepository
-                .findByPortfolioIdOrderByPaymentDateAscIdAsc(1L))
+                .findByPortfolioIdAndPortfolioUserIdOrderByPaymentDateAscIdAsc(
+                        1L,
+                        USER_ID
+                ))
                 .thenReturn(List.of(income));
 
         when(incomeMapper.toResponse(income))
                 .thenReturn(response);
 
         List<IncomeResponse> result =
-                incomeService.findByPortfolioId(1L);
+                incomeService.findByPortfolioId(1L, USER_ID);
 
         assertEquals(1, result.size());
         assertEquals(response, result.getFirst());
 
-        verify(incomeRepository)
-                .findByPortfolioIdOrderByPaymentDateAscIdAsc(1L);
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
 
-        verify(incomeMapper).toResponse(income);
+        verify(incomeRepository)
+                .findByPortfolioIdAndPortfolioUserIdOrderByPaymentDateAscIdAsc(
+                        1L,
+                        USER_ID
+                );
+
+        verify(incomeMapper)
+                .toResponse(income);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenPortfolioBelongsToAnotherUser() {
+
+        IncomeRequest request = new IncomeRequest(
+                1L,
+                1L,
+                IncomeType.DIVIDEND,
+                new BigDecimal("0.50"),
+                new BigDecimal("100"),
+                LocalDate.of(2026, 9, 3)
+        );
+
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                PortfolioNotFoundException.class,
+                () -> incomeService.create(request, USER_ID)
+        );
+
+        verify(portfolioRepository)
+                .findByIdAndUserId(1L, USER_ID);
+
+        verifyNoInteractions(assetRepository);
+        verifyNoInteractions(incomeMapper);
+        verifyNoInteractions(incomeRepository);
     }
 }
