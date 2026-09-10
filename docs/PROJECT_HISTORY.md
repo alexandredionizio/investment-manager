@@ -696,6 +696,211 @@ Skipped: 0
 BUILD SUCCESS
 ```
 
+---
+
+## Sprint 7 — Usuários, Autenticação e Segurança
+
+**Status:** Concluída
+
+### Objetivo
+
+Adicionar usuários à aplicação, implementar autenticação com JWT e garantir que os dados pertencentes a uma carteira sejam acessíveis somente pelo usuário autenticado proprietário.
+
+### Principais entregas
+
+#### Usuários
+
+- Criação da feature `user`
+- Entidade `User`
+- Migration V7 para criação da tabela `users`
+- `UserRepository`
+- `UserCreateRequest`
+- `UserResponse`
+- `UserService`
+- `UserController`
+- Senhas armazenadas com BCrypt
+- Validação de e-mail único
+- `UserAlreadyExistsException`
+- Retorno HTTP 409 para tentativa de cadastro de e-mail já existente
+- Senha não exposta nos DTOs de resposta
+
+#### Autenticação e JWT
+
+- Criação da feature `auth`
+- `LoginRequest`
+- `LoginResponse`
+- `AuthService`
+- `AuthController`
+- `InvalidCredentialsException`
+- `JwtService`
+- Geração e validação de JWT
+- ID do usuário armazenado no `subject` do token
+- Chave JWT fornecida pela variável de ambiente `JWT_SECRET`
+- Expiração configurável do token
+- `JwtAuthenticationFilter`
+- `JwtAuthenticationEntryPoint`
+- Integração com Spring Security
+- Endpoints de criação de usuário e login públicos
+- Demais endpoints protegidos por autenticação
+
+Fluxo de autenticação:
+
+```text
+POST /api/v1/auth/login
+        ↓
+AuthService
+        ↓
+validação de e-mail e senha
+        ↓
+JwtService
+        ↓
+JWT com userId no subject
+        ↓
+Bearer Token nas requisições protegidas
+```
+
+#### Ownership e isolamento de dados
+
+Foi adotado o relacionamento:
+
+```text
+User 1:N Portfolio
+
+User
+ └── Portfolio
+      ├── Transaction
+      ├── Income
+      └── Position
+```
+
+A propriedade do usuário é armazenada na carteira. `Transaction`, `Income` e posições derivam o ownership através de `Portfolio`, evitando duplicação desnecessária de `user_id`.
+
+- Migration V8 adicionando `user_id` em `portfolios`
+- Relacionamento `Portfolio -> User` com `@ManyToOne(fetch = FetchType.LAZY)`
+- Foreign key entre `portfolios.user_id` e `users.id`
+- Carteiras filtradas pelo usuário autenticado
+- Transações filtradas pelo proprietário da carteira
+- Proventos filtrados pelo proprietário da carteira
+- Posições contábeis protegidas por ownership
+- Posições valorizadas a mercado protegidas por ownership
+- Usuário não proprietário recebe HTTP 404 ao tentar acessar carteira de outro usuário
+- Assets, Brokers e Quotes permanecem globais por decisão de domínio
+
+Fluxo de autorização:
+
+```text
+JWT
+ ↓
+JwtAuthenticationFilter
+ ↓
+Authentication
+ ↓
+Controller extrai userId
+ ↓
+Service valida ownership
+ ↓
+Repository filtra pelo usuário
+```
+
+O `Service` não consulta diretamente o `SecurityContextHolder`. O `Controller` recebe o usuário autenticado e repassa o `userId`, mantendo explícita a dependência de autenticação na camada de entrada.
+
+### Migrations
+
+```text
+V7 - criação da tabela users
+V8 - associação de user a portfolios
+```
+
+### Endpoints de usuários e autenticação
+
+```text
+POST /api/v1/users
+POST /api/v1/auth/login
+```
+
+Os demais endpoints da aplicação exigem:
+
+```text
+Authorization: Bearer <JWT>
+```
+
+### Tratamento de erros
+
+```text
+401 Unauthorized  - ausência de autenticação, token inválido/expirado ou credenciais inválidas
+404 Not Found     - recurso inexistente ou recurso pertencente a outro usuário
+409 Conflict      - tentativa de cadastrar e-mail já existente
+```
+
+### Decisões arquiteturais
+
+- `User` possui relação 1:N com `Portfolio`.
+- O `user_id` não foi replicado em `Transaction`, `Income` ou outras entidades dependentes.
+- O JWT utiliza o ID do usuário como `subject`.
+- Controllers extraem o ID do usuário autenticado e o enviam aos Services.
+- Services validam ownership explicitamente.
+- Exceptions específicas permanecem dentro de cada feature.
+- `GlobalExceptionHandler` permanece compartilhado.
+- O relacionamento com `User` permanece `LAZY`.
+- `PortfolioMapper` ignora explicitamente `user` no mapeamento do DTO de criação, pois o usuário é definido pelo contexto autenticado.
+
+### Testes
+
+Foram adicionados e atualizados testes para:
+
+- criação de usuário
+- tentativa de criação com e-mail já existente
+- geração de JWT
+- validação de JWT
+- login válido
+- credenciais inválidas
+- ownership de carteiras
+- isolamento de transações
+- isolamento de proventos
+- isolamento de posições
+- acesso autorizado e não autorizado às posições de mercado
+- repositories com consultas filtradas por usuário
+- carregamento do contexto Spring com configuração JWT de teste
+
+### Resultado final da suíte
+
+```text
+Tests run: 57
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+### Conceitos estudados
+
+- Spring Security
+- `SecurityFilterChain`
+- `PasswordEncoder`
+- BCrypt
+- JWT
+- Bearer Token
+- `OncePerRequestFilter`
+- `Authentication`
+- `SecurityContextHolder`
+- autenticação x autorização
+- ownership de dados
+- isolamento entre usuários
+- relacionamento `User 1:N Portfolio`
+- derived query methods atravessando relacionamentos
+- HTTP 401, 404 e 409
+- variáveis de ambiente para segredos
+- testes unitários de autenticação e autorização
+
+### Versionamento
+
+Commit principal da Sprint:
+
+```text
+8a32c7b feat: add JWT authentication and user data isolation
+```
+
 ## Estado atual
 
 ```text
@@ -705,10 +910,15 @@ Sprint 3 ✅
 Sprint 4 ✅
 Sprint 5 ✅
 Sprint 6 ✅
+Sprint 7 ✅
 ```
 
 Próximo marco:
 
 ```text
-Sprint 7 — Usuários, autenticação e segurança
+Sprint 8 — Consolidação, documentação e preparação para produção
 ```
+
+### Quiz da Sprint
+
+Pendente de realização no fechamento da Sprint 7.
