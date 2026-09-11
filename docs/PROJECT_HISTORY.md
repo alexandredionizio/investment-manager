@@ -922,3 +922,162 @@ Sprint 8 — Consolidação, documentação e preparação para produção
 ### Quiz da Sprint
 
 Pendente de realização no fechamento da Sprint 7.
+
+---
+
+## Sprint 8 — Consolidação, documentação e preparação para produção
+
+**Status:** Concluída
+
+### Objetivo
+
+Consolidar a API construída nas Sprints anteriores, documentar os endpoints com OpenAPI/Swagger, revisar contratos HTTP, DTOs, validações e configurações sensíveis, além de preparar a aplicação para execução em diferentes ambientes sem expor segredos.
+
+### Principais entregas
+
+#### OpenAPI e Swagger
+
+- Adição do SpringDoc OpenAPI 3.1.1
+- Swagger UI disponível em `/swagger-ui/index.html`
+- Especificação OpenAPI disponível em `/v3/api-docs`
+- Configuração de autenticação HTTP Bearer com JWT no Swagger
+- Liberação das rotas do Swagger no Spring Security
+- Documentação dos 9 controllers da aplicação
+- Revisão das principais respostas HTTP documentadas
+- Validação real do fluxo de login e autorização pelo Swagger UI
+
+#### Padronização de erros
+
+Foi criado o contrato compartilhado `ErrorResponse`:
+
+```text
+status
+error
+message
+```
+
+As respostas simples de erro deixaram de utilizar estruturas genéricas baseadas em `Map<String, Object>`, tornando o contrato da API mais previsível e melhor documentado pelo OpenAPI.
+
+Exemplo validado:
+
+```json
+{
+  "status": 404,
+  "error": "Não encontrado",
+  "message": "Ativo não encontrado com o id: 999999"
+}
+```
+
+O `ValidationErrorResponse` permanece específico para erros de Bean Validation, preservando os campos inválidos e suas respectivas mensagens.
+
+#### DTOs e validações
+
+- Revisão dos DTOs de entrada e saída
+- Padronização das mensagens de Bean Validation em PT-BR
+- Revisão de `@NotBlank`, `@NotNull`, `@Positive`, `@Size` e `@Email`
+- Remoção de imports não utilizados em DTOs revisados
+- Manutenção das entidades isoladas dos contratos HTTP através de DTOs
+
+#### Revisão dos códigos HTTP
+
+Foram revisados os controllers de:
+
+```text
+Asset
+Auth
+Broker
+Income
+Portfolio
+Position
+Quote
+Transaction
+User
+```
+
+Principais códigos utilizados:
+
+```text
+200 OK
+201 Created
+400 Bad Request
+401 Unauthorized
+404 Not Found
+409 Conflict
+```
+
+#### Configuração por ambiente
+
+O `application.yml` foi revisado para permitir configuração externa através de variáveis de ambiente:
+
+```text
+DB_URL
+DB_USERNAME
+DB_PASSWORD
+REDIS_HOST
+REDIS_PORT
+BRAPI_TOKEN
+JWT_SECRET
+JWT_EXPIRATION
+```
+
+Banco de dados e Redis possuem valores padrão adequados ao ambiente local. Segredos como `BRAPI_TOKEN` e `JWT_SECRET` continuam sem valores reais versionados no repositório.
+
+#### Limpeza de código
+
+- Identificada injeção desnecessária de `BrokerMapper` no `BrokerController`
+- Confirmado que `BrokerMapper` continua necessário no `BrokerService`
+- Removida apenas a dependência não utilizada do controller, sem alterar a arquitetura da feature
+
+### Testes e validação final
+
+Após as alterações da Sprint, a aplicação foi compilada e a suíte completa foi executada com sucesso:
+
+```text
+Tests run: 57
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+A execução final confirmou ausência de regressões nas funcionalidades implementadas nas Sprints anteriores.
+
+### Conceitos estudados
+
+- OpenAPI
+- Swagger UI
+- SpringDoc
+- documentação de contratos REST
+- HTTP Bearer Authentication
+- documentação de respostas HTTP
+- padronização de respostas de erro
+- Bean Validation
+- configuração externa por variáveis de ambiente
+- valores padrão em propriedades Spring (`${VARIAVEL:valorPadrao}`)
+- separação entre configuração local e segredos
+- revisão e remoção de dependências não utilizadas
+- regressão através de suíte automatizada de testes
+
+## Estado atual
+
+```text
+Sprint 1 ✅
+Sprint 2 ✅
+Sprint 3 ✅
+Sprint 4 ✅
+Sprint 5 ✅
+Sprint 6 ✅
+Sprint 7 ✅
+Sprint 8 ✅
+```
+
+Próximo marco:
+
+```text
+Sprint 9 — Front-end React (opcional)
+```
+
+### Quiz da Sprint
+
+Pendente de realização após o fechamento técnico da Sprint 8.

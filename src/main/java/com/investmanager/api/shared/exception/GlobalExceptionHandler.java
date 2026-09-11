@@ -10,7 +10,6 @@ import com.investmanager.api.quote.exception.QuoteNotFoundException;
 import com.investmanager.api.transaction.exception.TransactionNotFoundException;
 import com.investmanager.api.user.exception.UserAlreadyExistsException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -24,14 +23,18 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ValidationErrorResponse handleValidationException (
+    public ValidationErrorResponse handleValidationException(
             MethodArgumentNotValidException exception) {
+
         Map<String, String> fields = new HashMap<>();
 
         exception.getBindingResult()
                 .getFieldErrors()
                 .forEach(error ->
-                        fields.put(error.getField(), error.getDefaultMessage())
+                        fields.put(
+                                error.getField(),
+                                error.getDefaultMessage()
+                        )
                 );
 
         return new ValidationErrorResponse(
@@ -43,107 +46,109 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AssetNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, Object> handleAssetNotFoundException(
+    public ErrorResponse handleAssetNotFoundException(
             AssetNotFoundException exception) {
 
-        return Map.of(
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Não encontrado",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                "Não encontrado",
+                exception.getMessage()
         );
     }
 
     @ExceptionHandler(PortfolioNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, Object> handlePortfolioNotFoundException(
+    public ErrorResponse handlePortfolioNotFoundException(
             PortfolioNotFoundException exception) {
 
-        return Map.of(
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Não encontrado",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                "Não encontrado",
+                exception.getMessage()
         );
     }
 
     @ExceptionHandler(TransactionNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, Object> handleTransactionNotFoundException(
+    public ErrorResponse handleTransactionNotFoundException(
             TransactionNotFoundException exception) {
 
-        return Map.of(
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Não encontrado",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                "Não encontrado",
+                exception.getMessage()
         );
     }
 
     @ExceptionHandler(InsufficientPositionException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Map<String, Object> handleInsufficientPositionException(
+    public ErrorResponse handleInsufficientPositionException(
             InsufficientPositionException exception) {
 
-        return Map.of(
-                "status", HttpStatus.BAD_REQUEST.value(),
-                "error", "Requisição inválida",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Requisição inválida",
+                exception.getMessage()
         );
     }
 
     @ExceptionHandler(BrokerNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, Object> handleBrokerNotFoundException(
+    public ErrorResponse handleBrokerNotFoundException(
             BrokerNotFoundException exception) {
 
-        return  Map.of(
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Não encontrado",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                "Não encontrado",
+                exception.getMessage()
         );
     }
 
     @ExceptionHandler(IncomeNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, Object> handleIncomeNotFoundException (
+    public ErrorResponse handleIncomeNotFoundException(
             IncomeNotFoundException exception) {
 
-        return Map.of(
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Não encontrado",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                "Não encontrado",
+                exception.getMessage()
         );
     }
 
     @ExceptionHandler(QuoteNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, Object> handleQuoteNotFoundException(
+    public ErrorResponse handleQuoteNotFoundException(
             QuoteNotFoundException exception) {
 
-        return Map.of(
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Não encontrado",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                "Não encontrado",
+                exception.getMessage()
         );
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<?> handleInvalidCredentialsException(
-            InvalidCredentialsException ex) {
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse handleInvalidCredentialsException(
+            InvalidCredentialsException exception) {
 
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(ex.getMessage());
+        return new ErrorResponse(
+                HttpStatus.UNAUTHORIZED.value(),
+                "Não autorizado",
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
-    public Map<String, Object> handleUserAlreadyExistsException(
+    public ErrorResponse handleUserAlreadyExistsException(
             UserAlreadyExistsException exception) {
 
-        return Map.of(
-                "status", HttpStatus.CONFLICT.value(),
-                "error", "Conflito",
-                "message", exception.getMessage()
+        return new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "Conflito",
+                exception.getMessage()
         );
     }
-
 }

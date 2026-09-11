@@ -3,9 +3,9 @@ spring:
     name: investment-manager-api
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/invest_manager
-    username: invest_manager
-    password: invest_manager
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/invest_manager}
+    username: ${DB_USERNAME:invest_manager}
+    password: ${DB_PASSWORD:invest_manager}
 
   jpa:
     hibernate:
@@ -17,12 +17,12 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 brapi:
   token: ${BRAPI_TOKEN}
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 3600000
+  expiration: ${JWT_EXPIRATION:3600000}

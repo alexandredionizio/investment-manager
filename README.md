@@ -13,6 +13,7 @@ Construir uma aplicação capaz de gerenciar usuários, carteiras, ativos, trans
 - Spring Web
 - Spring Data JPA
 - Spring Security
+- SpringDoc OpenAPI 3.1.1
 - Jakarta Validation
 - PostgreSQL 17
 - Redis 7
@@ -301,6 +302,38 @@ e a transação não é persistida.
 - A carteira é a raiz do ownership para transações, proventos e posições.
 - Tentativas de acessar recursos de outra carteira são tratadas como recurso não encontrado.
 
+## Documentação da API
+
+A API possui documentação interativa utilizando OpenAPI e Swagger UI através do SpringDoc.
+
+Com a aplicação em execução, a interface pode ser acessada em:
+
+```text
+http://localhost:8080/swagger-ui/index.html
+```
+
+A especificação OpenAPI está disponível em:
+
+```text
+http://localhost:8080/v3/api-docs
+```
+
+Os controllers possuem documentação dos endpoints e das principais respostas HTTP. A autenticação Bearer/JWT também está integrada ao Swagger UI, permitindo testar endpoints protegidos diretamente pela interface.
+
+Para testar endpoints protegidos, realize o login em `POST /api/v1/auth/login`, copie o JWT retornado, clique em `Authorize` e informe somente o token, sem adicionar manualmente o prefixo `Bearer`.
+
+As respostas de erro simples seguem um contrato padronizado:
+
+```json
+{
+  "status": 404,
+  "error": "Não encontrado",
+  "message": "Ativo não encontrado com o id: 999999"
+}
+```
+
+Erros de validação utilizam `ValidationErrorResponse`, contendo os campos inválidos e suas respectivas mensagens. As mensagens de validação dos DTOs de entrada foram padronizadas em PT-BR.
+
 ## Banco de dados e migrations
 
 ```text
@@ -316,7 +349,26 @@ V8 - associação de user a portfolios
 
 ## Configuração
 
-A aplicação utiliza variáveis de ambiente para credenciais e segredos.
+A aplicação utiliza variáveis de ambiente para configurações sensíveis e valores que podem variar entre ambientes.
+
+### Banco de dados
+
+```text
+DB_URL
+DB_USERNAME
+DB_PASSWORD
+```
+
+Para desenvolvimento local, existem valores padrão em `application.yml`.
+
+### Redis
+
+```text
+REDIS_HOST
+REDIS_PORT
+```
+
+Os valores padrão locais são `localhost` e `6379`.
 
 ### API de cotações
 
@@ -328,11 +380,12 @@ BRAPI_TOKEN
 
 ```text
 JWT_SECRET
+JWT_EXPIRATION
 ```
 
 `JWT_SECRET` deve conter uma chave Base64 adequada para assinatura do token. O segredo real não deve ser versionado no repositório.
 
-A expiração configurada atualmente é de 1 hora.
+`JWT_EXPIRATION` possui valor padrão de `3600000` milissegundos, equivalente a 1 hora.
 
 ## Como executar
 
@@ -375,7 +428,7 @@ O projeto utiliza testes unitários e de integração com:
 - testes de autenticação e JWT
 - testes de ownership e isolamento entre usuários
 
-Ao final da Sprint 7:
+Validação realizada ao final da Sprint 8:
 
 ```text
 Tests run: 57
@@ -406,7 +459,7 @@ BUILD SUCCESS
 - [x] Sprint 5 — Proventos e corretoras
 - [x] Sprint 6 — Cotações externas e cache
 - [x] Sprint 7 — Usuários, autenticação e segurança
-- [ ] Sprint 8 — Consolidação, documentação e preparação para produção
+- [x] Sprint 8 — Consolidação, documentação e preparação para produção
 - [ ] Sprint 9 opcional — Front-end React
 
 ## Histórico detalhado
