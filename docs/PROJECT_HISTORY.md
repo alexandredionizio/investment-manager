@@ -1,3 +1,4 @@
+
 # Histórico do Projeto — Investment Manager API
 
 Este documento registra a evolução técnica do projeto por Sprint e funciona como checkpoint de continuidade, rastreabilidade e base para a documentação final.
@@ -1081,3 +1082,177 @@ Sprint 9 — Front-end React (opcional)
 ### Quiz da Sprint
 
 Pendente de realização após o fechamento técnico da Sprint 8.
+
+````
+
+---
+
+## Sprint 9 — Front-end React
+
+**Status:** Concluída
+
+### Objetivo
+
+Construir uma interface web moderna e responsiva para consumir a API REST do Investment Manager, permitindo autenticação, navegação e operação das principais funcionalidades já implementadas no backend.
+
+### Principais entregas
+
+#### Fundação do frontend
+
+- Projeto separado `investment-manager-web`
+- React com TypeScript
+- Vite
+- React Router
+- Axios
+- Configuração da URL da API através de `VITE_API_URL`
+- Estrutura organizada em `components`, `pages`, `services` e `types`
+- CSS responsivo sem dependência de biblioteca visual externa
+
+#### Autenticação e segurança
+
+- Tela de login integrada a `POST /api/v1/auth/login`
+- JWT armazenado no `localStorage`
+- `ProtectedRoute` para impedir acesso sem autenticação
+- Interceptor Axios para envio automático de `Authorization: Bearer <JWT>`
+- Interceptor de resposta para tratamento de HTTP 401
+- Remoção do token inválido e redirecionamento para `/login`
+- Logout com remoção do token
+- CORS centralizado no backend para `http://localhost:5173`
+
+#### Navegação
+
+- Header compartilhado
+- Rotas para Dashboard, Carteiras, Transações, Proventos e Ativos
+- Destaque visual da rota ativa
+- Menu mobile do tipo hambúrguer
+- Fechamento automático do menu após a navegação
+
+#### Dashboard
+
+- Seleção de carteira
+- Carregamento paralelo de posições valorizadas e proventos
+- Patrimônio atual
+- Resultado não realizado
+- Rentabilidade percentual
+- Custo investido
+- Proventos registrados
+- Quantidade de ativos
+- Cards das posições com preço médio, preço atual, custo, valor atual e resultado
+- Indicadores positivos e negativos com diferenciação visual
+
+#### Carteiras e posições
+
+- Listagem das carteiras do usuário autenticado
+- Resumo financeiro por carteira
+- Acesso ao detalhe da carteira
+- Consulta de posições valorizadas a mercado
+- Exibição de quantidade, preço médio, preço atual, custo, valor atual, resultado e rentabilidade
+
+#### Transações
+
+- Seleção de carteira
+- Cadastro de compras e vendas
+- Seleção de ativo e corretora
+- Histórico de transações
+- Integração das transações com o recálculo das posições
+- Exibição de erros de regra de negócio retornados pelo backend
+- Validação de venda superior à posição disponível
+
+#### Proventos
+
+- Cadastro de dividendos, JCP e rendimentos de FIIs
+- Seleção de carteira e ativo
+- Valor por unidade, quantidade e data de pagamento
+- Histórico de proventos
+- Exibição do valor total calculado pelo backend
+- Consolidação dos proventos no Dashboard
+
+#### Ativos
+
+- Listagem dos ativos disponíveis
+- Exibição de ticker, nome, tipo, setor e bolsa
+- Tradução dos tipos de ativo para apresentação ao usuário
+
+#### Responsividade
+
+- Cards reorganizados para telas menores
+- Formulários adaptados para layout mobile
+- Posições e resumos financeiros responsivos
+- Header mobile com menu hambúrguer
+- Validação visual realizada em viewport de aproximadamente 399 x 757 pixels
+
+### Revisão funcional da Sprint
+
+Antes do encerramento da Sprint 9 foi executada uma revisão funcional manual cobrindo os fluxos principais.
+
+```text
+Teste 1 — Login, logout e proteção das rotas       OK
+Teste 2 — Navegação entre as páginas                OK
+Teste 3 — Transação -> posição -> Dashboard          OK
+Teste 4 — Provento -> histórico -> Dashboard         OK
+Teste 5 — Validações e regras de negócio             OK
+Teste 6 — JWT/token inválido                         OK
+Teste 7 — Responsividade/mobile                      OK
+```
+
+Durante o Teste 7 foi identificado que o menu horizontal não disponibilizava todos os itens em telas pequenas. O problema foi corrigido com a implementação do menu mobile hambúrguer e o teste foi repetido com sucesso.
+
+### Conceitos estudados
+
+- React
+- TypeScript
+- JSX/TSX
+- Componentes
+- Props
+- `useState`
+- `useEffect`
+- estado e renderização
+- formulários controlados
+- React Router
+- SPA
+- `NavLink`
+- rotas protegidas
+- Axios
+- `async/await`
+- interfaces TypeScript
+- variáveis de ambiente no Vite
+- `localStorage`
+- JWT no frontend
+- request e response interceptors
+- CORS e preflight
+- `Promise.all`
+- renderização condicional
+- `map` e `key`
+- CSS Grid e Flexbox
+- media queries
+- design responsivo
+
+### Decisões de implementação
+
+- O frontend permanece como aplicação independente do backend.
+- O React consome exclusivamente a API REST; não foi utilizado Thymeleaf.
+- O token JWT é anexado às requisições pelo cliente Axios centralizado.
+- Regras de negócio permanecem no backend; o frontend apresenta ao usuário os erros retornados pela API.
+- Proventos são apresentados separadamente do patrimônio atual, pois ainda não existe um módulo de saldo/caixa.
+- A interface utiliza componentes e CSS próprios, evitando adicionar uma biblioteca visual apenas para a Sprint 9.
+
+### Evolução futura registrada
+
+O módulo de proventos poderá evoluir para registrar data-base/data-com e calcular automaticamente a quantidade elegível a partir do histórico de transações existente naquela data, reduzindo a necessidade de informar manualmente a quantidade.
+
+## Estado atual
+
+```text
+Sprint 1 ✅
+Sprint 2 ✅
+Sprint 3 ✅
+Sprint 4 ✅
+Sprint 5 ✅
+Sprint 6 ✅
+Sprint 7 ✅
+Sprint 8 ✅
+Sprint 9 ✅
+```
+
+A aplicação possui agora backend Java/Spring Boot e frontend React/TypeScript integrados, com os principais fluxos funcionais disponíveis através da interface web.
+

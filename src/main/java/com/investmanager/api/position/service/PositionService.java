@@ -21,6 +21,9 @@ import java.util.stream.Collectors;
 @Service
 public class PositionService {
 
+    private static final int CALCULATION_SCALE = 12;
+    private static final int DISPLAY_SCALE = 2;
+
     private final TransactionRepository transactionRepository;
     private final PortfolioRepository portfolioRepository;
     private final QuoteService quoteService;
@@ -109,7 +112,7 @@ public class PositionService {
                 BigDecimal averagePrice =
                         totalCost.divide(
                                 quantity,
-                                2,
+                                CALCULATION_SCALE,
                                 RoundingMode.HALF_UP
                         );
 
@@ -138,17 +141,23 @@ public class PositionService {
             averagePrice =
                     totalCost.divide(
                             quantity,
-                            2,
+                            DISPLAY_SCALE,
                             RoundingMode.HALF_UP
                     );
         }
+
+        BigDecimal displayedTotalCost =
+                totalCost.setScale(
+                        DISPLAY_SCALE,
+                        RoundingMode.HALF_UP
+                );
 
         return new PositionResponse(
                 asset.getId(),
                 asset.getTicker(),
                 quantity,
                 averagePrice,
-                totalCost
+                displayedTotalCost
         );
     }
 

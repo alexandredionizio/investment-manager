@@ -1,6 +1,6 @@
-# Investment Manager API
+# Investment Manager
 
-API REST para gerenciamento de investimentos, desenvolvida em Java com Spring Boot como projeto de estudo e evolução prática em desenvolvimento backend, arquitetura, persistência, testes, integrações, segurança e boas práticas.
+Aplicação full stack para gerenciamento de investimentos, desenvolvida como projeto de estudo e evolução prática em Java/Spring Boot no backend e React/TypeScript no frontend, com foco em arquitetura, persistência, testes, integrações, segurança e boas práticas.
 
 ## Objetivo
 
@@ -26,6 +26,31 @@ Construir uma aplicação capaz de gerenciar usuários, carteiras, ativos, trans
 - Docker / Docker Compose
 - Maven
 - Git / GitHub
+- React
+- TypeScript
+- Vite
+- React Router
+- Axios
+
+## Frontend React
+
+O frontend é mantido em um projeto separado, `investment-manager-web`, consumindo a API REST em `http://localhost:8080/api/v1`.
+
+Funcionalidades entregues na Sprint 9:
+
+- Login com JWT e armazenamento do token no `localStorage`
+- Rotas protegidas com React Router
+- Cliente Axios centralizado
+- Interceptor para envio automático do Bearer Token
+- Tratamento global de HTTP 401 e redirecionamento para login
+- Dashboard financeiro por carteira
+- Visão de patrimônio, custo, resultado, rentabilidade, proventos e quantidade de ativos
+- Listagem de carteiras e detalhe das posições valorizadas a mercado
+- Cadastro e histórico de transações
+- Cadastro e histórico de proventos
+- Listagem de ativos
+- Navegação responsiva com menu mobile
+- Integração real com os endpoints protegidos do backend
 
 ## Arquitetura atual
 
@@ -413,6 +438,32 @@ Executar a suíte completa de testes:
 .\mvnw.cmd clean test
 ```
 
+## Como executar o frontend
+
+Pré-requisitos:
+
+- Node.js
+- npm
+
+No projeto `investment-manager-web`, configure:
+
+```env
+VITE_API_URL=http://localhost:8080/api/v1
+```
+
+Instale as dependências e execute o Vite:
+
+```powershell
+npm install
+npm run dev
+```
+
+O frontend de desenvolvimento fica disponível em:
+
+```text
+http://localhost:5173
+```
+
 ## Testes
 
 O projeto utiliza testes unitários e de integração com:
@@ -460,7 +511,7 @@ BUILD SUCCESS
 - [x] Sprint 6 — Cotações externas e cache
 - [x] Sprint 7 — Usuários, autenticação e segurança
 - [x] Sprint 8 — Consolidação, documentação e preparação para produção
-- [ ] Sprint 9 opcional — Front-end React
+- [x] Sprint 9 — Front-end React
 
 ## Histórico detalhado
 
@@ -469,3 +520,5 @@ Consulte:
 ```text
 docs/PROJECT_HISTORY.md
 ```
+
+````

@@ -10,22 +10,39 @@ import java.util.Optional;
 public interface TransactionRepository
         extends JpaRepository<Transaction, Long> {
 
-    @EntityGraph(attributePaths = "asset")
+    @EntityGraph(attributePaths = {
+            "portfolio",
+            "asset",
+            "broker"
+    })
     List<Transaction> findByPortfolioIdOrderByTransactionDateAscIdAsc(
             Long portfolioId
     );
 
+    @EntityGraph(attributePaths = {
+            "portfolio",
+            "asset",
+            "broker"
+    })
     Optional<Transaction> findByIdAndPortfolioUserId(
             Long id,
             Long userId
     );
 
-    @EntityGraph(attributePaths = "asset")
+    @EntityGraph(attributePaths = {
+            "portfolio",
+            "asset",
+            "broker"
+    })
     List<Transaction> findAllByPortfolioUserId(
             Long userId
     );
 
-    @EntityGraph(attributePaths = "asset")
+    @EntityGraph(attributePaths = {
+            "portfolio",
+            "asset",
+            "broker"
+    })
     List<Transaction> findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(
             Long portfolioId,
             Long userId
