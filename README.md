@@ -36,7 +36,7 @@ Construir uma aplicação capaz de gerenciar usuários, carteiras, ativos, trans
 
 O frontend é mantido em um projeto separado, `investment-manager-web`, consumindo a API REST em `http://localhost:8080/api/v1`.
 
-Funcionalidades entregues na Sprint 9:
+Funcionalidades entregues nas Sprints 9 e 10:
 
 - Login com JWT e armazenamento do token no `localStorage`
 - Rotas protegidas com React Router
@@ -47,7 +47,7 @@ Funcionalidades entregues na Sprint 9:
 - Visão de patrimônio, custo, resultado, rentabilidade, proventos e quantidade de ativos
 - Listagem de carteiras e detalhe das posições valorizadas a mercado
 - Cadastro e histórico de transações
-- Cadastro e histórico de proventos
+- Cadastro e histórico de proventos com data-base e quantidade elegível calculada automaticamente
 - Listagem de ativos
 - Navegação responsiva com menu mobile
 - Integração real com os endpoints protegidos do backend
@@ -220,11 +220,16 @@ GET  /api/v1/brokers/{id}
 
 - Cadastro de dividendos, JCP e rendimentos de FIIs
 - Associação com carteira e ativo
+- Registro separado de data-base e data de pagamento
+- Quantidade elegível calculada automaticamente a partir do histórico de transações até a data-base
+- Persistência da quantidade elegível calculada para preservar a integridade histórica do provento
 - Busca por ID respeitando ownership
 - Listagem limitada ao usuário autenticado
 - Listagem por carteira com validação de ownership
 - Cálculo automático do valor total do provento
-- Validação de quantidade e valor por unidade
+- Validação de valor por unidade, data-base e data de pagamento
+- Rejeição do cadastro quando não existe posição positiva do ativo na data-base
+- Mensagem de regra de negócio exibida pelo frontend em PT-BR
 - Tratamento de provento inexistente
 
 ```text
@@ -370,6 +375,7 @@ V5 - adição de broker a transactions
 V6 - criação de incomes
 V7 - criação de users
 V8 - associação de user a portfolios
+V9 - adição de base_date em incomes
 ```
 
 ## Configuração
@@ -479,16 +485,24 @@ O projeto utiliza testes unitários e de integração com:
 - testes de autenticação e JWT
 - testes de ownership e isolamento entre usuários
 
-Validação realizada ao final da Sprint 8:
+Validação realizada ao final da Sprint 10:
 
 ```text
-Tests run: 57
+Tests run: 59
 Failures: 0
 Errors: 0
 Skipped: 0
 
 BUILD SUCCESS
 ```
+
+O frontend também foi validado com sucesso através de:
+
+```powershell
+npm run build
+```
+
+A validação funcional da Sprint 10 confirmou o cálculo histórico da quantidade elegível na data-base e a rejeição de proventos quando não existe posição positiva naquela data.
 
 ## Códigos HTTP relevantes
 
@@ -512,6 +526,7 @@ BUILD SUCCESS
 - [x] Sprint 7 — Usuários, autenticação e segurança
 - [x] Sprint 8 — Consolidação, documentação e preparação para produção
 - [x] Sprint 9 — Front-end React
+- [x] Sprint 10 — Proventos 2.0: data-base e quantidade elegível
 
 ## Histórico detalhado
 
@@ -521,4 +536,3 @@ Consulte:
 docs/PROJECT_HISTORY.md
 ```
 
-````

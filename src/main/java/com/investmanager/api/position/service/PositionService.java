@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -172,6 +173,33 @@ public class PositionService {
                 )
                 .findFirst()
                 .orElse(null);
+    }
+
+    public PositionResponse calculatePositionByAssetAndDate(
+            Long portfolioId,
+            Long assetId,
+            LocalDate baseDate) {
+
+        List<Transaction> transactions =
+                transactionRepository
+                        .findByPortfolioIdAndAssetIdAndTransactionDateLessThanEqualOrderByTransactionDateAscIdAsc(
+                                portfolioId,
+                                assetId,
+                                baseDate
+                        );
+
+        if (transactions.isEmpty()) {
+            return null;
+        }
+
+        Asset asset = transactions
+                .getFirst()
+                .getAsset();
+
+        return calculatePosition(
+                asset,
+                transactions
+        );
     }
 
     public List<PositionMarketResponse> calculateMarketPositions(

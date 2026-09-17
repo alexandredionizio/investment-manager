@@ -4,6 +4,7 @@ import com.investmanager.api.asset.exception.AssetNotFoundException;
 import com.investmanager.api.auth.exception.InvalidCredentialsException;
 import com.investmanager.api.broker.exception.BrokerNotFoundException;
 import com.investmanager.api.income.exception.IncomeNotFoundException;
+import com.investmanager.api.income.exception.NoPositionOnBaseDateException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.position.exception.InsufficientPositionException;
 import com.investmanager.api.quote.exception.QuoteNotFoundException;
@@ -84,6 +85,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleInsufficientPositionException(
             InsufficientPositionException exception) {
+
+        return new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Requisição inválida",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(NoPositionOnBaseDateException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleNoPositionOnBaseDateException(
+            NoPositionOnBaseDateException exception) {
 
         return new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),

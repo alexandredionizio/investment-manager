@@ -1,4 +1,3 @@
-
 # Histórico do Projeto — Investment Manager API
 
 Este documento registra a evolução técnica do projeto por Sprint e funciona como checkpoint de continuidade, rastreabilidade e base para a documentação final.
@@ -1083,7 +1082,6 @@ Sprint 9 — Front-end React (opcional)
 
 Pendente de realização após o fechamento técnico da Sprint 8.
 
-````
 
 ---
 
@@ -1238,7 +1236,7 @@ Durante o Teste 7 foi identificado que o menu horizontal não disponibilizava to
 
 ### Evolução futura registrada
 
-O módulo de proventos poderá evoluir para registrar data-base/data-com e calcular automaticamente a quantidade elegível a partir do histórico de transações existente naquela data, reduzindo a necessidade de informar manualmente a quantidade.
+A evolução prevista para o módulo de proventos — registrar data-base e calcular automaticamente a quantidade elegível a partir do histórico de transações — foi implementada na Sprint 10.
 
 ## Estado atual
 
@@ -1254,5 +1252,284 @@ Sprint 8 ✅
 Sprint 9 ✅
 ```
 
-A aplicação possui agora backend Java/Spring Boot e frontend React/TypeScript integrados, com os principais fluxos funcionais disponíveis através da interface web.
+A aplicação possui agora backend Java/Spring Boot e frontend React/TypeScript integrados, com os principais fluxos funcionais disponíveis através da interface web e com o módulo de proventos capaz de reconstruir a posição histórica na data-base.
 
+---
+
+## Sprint 10 — Proventos 2.0: data-base e quantidade elegível
+
+**Status:** Concluída
+
+### Objetivo
+
+Evoluir o módulo de proventos para separar a data-base da data de pagamento e eliminar a necessidade de informar manualmente a quantidade elegível, calculando-a automaticamente a partir do histórico de transações da carteira.
+
+### Principais entregas
+
+#### Evolução do modelo de proventos
+
+- Adição de `baseDate` à entidade `Income`
+- Manutenção de `paymentDate` como informação independente
+- Migration V9 adicionando `base_date` à tabela `incomes`
+- Backfill dos registros existentes utilizando `payment_date` como `base_date` exclusivamente para compatibilidade histórica
+- Coluna `base_date` definida como `NOT NULL`
+- Manutenção da quantidade elegível persistida em `Income` para preservar a integridade histórica do provento
+
+#### Novo contrato de entrada
+
+O `IncomeRequest` deixou de receber `quantity`.
+
+O cliente informa:
+
+```text
+portfolioId
+assetId
+type
+amountPerUnit
+baseDate
+paymentDate
+```
+
+A quantidade elegível passa a ser responsabilidade do backend.
+
+#### Cálculo histórico da posição
+
+Foi adicionada ao `TransactionRepository` uma consulta específica para recuperar as transações de um ativo até determinada data:
+
+```text
+portfolioId
++ assetId
++ transactionDate <= baseDate
++ ordenação por transactionDate e id
+```
+
+O `PositionService` passou a disponibilizar o cálculo da posição de um ativo em uma data histórica, reutilizando a mesma regra de consolidação já utilizada para a posição atual.
+
+Regra adotada nesta Sprint:
+
+```text
+transactionDate <= baseDate
+```
+
+Portanto, as transações realizadas na própria data-base participam do cálculo da quantidade elegível.
+
+Fluxo:
+
+```text
+IncomeService
+    ↓
+valida carteira e ownership
+    ↓
+valida ativo
+    ↓
+PositionService
+    ↓
+busca transações do ativo até a data-base
+    ↓
+reconstrói a posição histórica
+    ↓
+quantidade positiva?
+    ├── sim → persiste Income com a quantidade calculada
+    └── não → NoPositionOnBaseDateException
+```
+
+#### Regra de negócio para ausência de posição
+
+Foi criada a exception:
+
+```text
+NoPositionOnBaseDateException
+```
+
+Quando não existe posição positiva do ativo na data-base:
+
+```text
+HTTP 400 Bad Request
+```
+
+Exemplo de mensagem:
+
+```text
+Não existe posição do ativo ITUB4 na data-base 13/09/2026
+```
+
+A data da mensagem é formatada em PT-BR com `DateTimeFormatter`.
+
+#### DTOs e mapeamento
+
+- `IncomeResponse` passou a expor `baseDate`
+- `IncomeMapper` foi atualizado para mapear a nova informação
+- `totalAmount` continua calculado como:
+
+```text
+totalAmount = amountPerUnit × quantity
+```
+
+- `quantity` continua presente na resposta, mas agora representa a quantidade elegível calculada pelo backend
+
+#### Frontend React
+
+O formulário de proventos foi atualizado para refletir o novo contrato da API:
+
+- remoção do campo manual `Quantidade`
+- adição do campo `Data-base`
+- manutenção da `Data de pagamento`
+- envio de `baseDate` no `IncomeRequest`
+- histórico exibindo Data-base e Pagamento separadamente
+- quantidade calculada pelo backend exibida no histórico
+- mensagem informando que o sistema calcula automaticamente a quantidade elegível
+
+O tratamento de erro da tela também foi melhorado.
+
+Erros de regra de negócio retornados pela API passaram a ser apresentados ao usuário através da mensagem recebida do backend, em vez de sempre utilizar uma mensagem genérica.
+
+O interceptor Axios global permaneceu responsável apenas por comportamentos transversais, como HTTP 401 e redirecionamento para login.
+
+### Migration
+
+```text
+V9 - adição de base_date em incomes
+```
+
+Estratégia aplicada:
+
+```sql
+ALTER TABLE incomes
+    ADD COLUMN base_date DATE;
+
+UPDATE incomes
+SET base_date = payment_date
+WHERE base_date IS NULL;
+
+ALTER TABLE incomes
+    ALTER COLUMN base_date SET NOT NULL;
+```
+
+### Validação funcional
+
+Foram utilizados dados reais do ambiente de desenvolvimento para validar a reconstrução histórica da posição de ITUB4.
+
+Histórico relevante:
+
+```text
+14/09/2026
+BUY 100
+posição final = 100
+
+15/09/2026
+posição inicial = 100
+BUY  50
+SELL 50
+SELL 100
+BUY 100
+BUY  10
+BUY 100
+posição final = 210
+
+16/09/2026
+BUY 10
+posição final = 220
+```
+
+Cenários validados:
+
+```text
+Teste 1
+Data-base: 14/09/2026
+Quantidade elegível esperada: 100
+Valor por unidade: R$ 0,50
+Valor total esperado: R$ 50,00
+Resultado: OK
+
+Teste 2
+Data-base: 15/09/2026
+Quantidade elegível esperada: 210
+Valor por unidade: R$ 0,50
+Valor total esperado: R$ 105,00
+Resultado: OK
+
+Teste 3
+Data-base: 13/09/2026
+Posição esperada: inexistente
+Resultado esperado: HTTP 400 e provento não persistido
+Resultado: OK
+```
+
+O primeiro e o segundo testes confirmaram que o backend utiliza a posição histórica, e não a posição atual de 220 ações.
+
+O terceiro confirmou a proteção contra cadastro de provento sem posição elegível.
+
+### Testes automatizados e build
+
+A suíte completa do backend foi executada após as alterações:
+
+```text
+Tests run: 59
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+O frontend também foi compilado para produção:
+
+```text
+npm run build
+```
+
+Resultado:
+
+```text
+TypeScript: OK
+Vite build: OK
+98 modules transformed
+built successfully
+```
+
+### Conceitos estudados
+
+- posição histórica
+- reconstrução de estado a partir de eventos/transações
+- data-base x data de pagamento
+- regra temporal com `LessThanEqual`
+- derived query methods com múltiplos critérios
+- reutilização de regra de domínio
+- persistência de snapshot histórico
+- evolução de schema com Flyway
+- backfill de dados em migration
+- tratamento de regra de negócio com HTTP 400
+- `DateTimeFormatter`
+- evolução coordenada de contratos backend/frontend
+- tratamento de erros Axios
+- separação entre erros globais e erros específicos de feature
+- testes funcionais de ponta a ponta
+
+### Decisões de implementação
+
+- A quantidade não é mais fornecida pelo cliente ao cadastrar um provento.
+- A quantidade elegível é calculada no backend a partir das transações existentes até a data-base.
+- A regra temporal desta Sprint considera transações com `transactionDate <= baseDate`.
+- A quantidade calculada é persistida em `Income`, evitando que alterações futuras no histórico modifiquem retroativamente um provento já registrado.
+- `baseDate` e `paymentDate` permanecem campos distintos.
+- Não foi adicionada nesta Sprint uma regra obrigando `baseDate <= paymentDate`.
+- O cálculo de `totalAmount` continua derivado de `amountPerUnit × quantity`.
+- O frontend apresenta mensagens de regra de negócio devolvidas pela API.
+- A lógica de domínio permanece concentrada no backend.
+
+## Estado atual
+
+```text
+Sprint 1 ✅
+Sprint 2 ✅
+Sprint 3 ✅
+Sprint 4 ✅
+Sprint 5 ✅
+Sprint 6 ✅
+Sprint 7 ✅
+Sprint 8 ✅
+Sprint 9 ✅
+Sprint 10 ✅
+```
+
+A Sprint 10 conclui a evolução planejada para Proventos 2.0, tornando o cadastro mais consistente com o histórico real de posições da carteira.

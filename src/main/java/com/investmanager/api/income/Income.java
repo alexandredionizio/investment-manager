@@ -3,7 +3,6 @@ package com.investmanager.api.income;
 import com.investmanager.api.asset.Asset;
 import com.investmanager.api.portfolio.Portfolio;
 import jakarta.persistence.*;
-import org.apache.logging.log4j.util.Lazy;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -34,13 +33,14 @@ public class Income {
     @Column(nullable = false, precision = 19, scale = 8)
     private BigDecimal quantity;
 
+    @Column(name = "base_date", nullable = false)
+    private LocalDate baseDate;
+
     @Column(name = "payment_date", nullable = false)
     private LocalDate paymentDate;
 
     public Income() {
     }
-
-
 
     public Income(
             Portfolio portfolio,
@@ -48,6 +48,7 @@ public class Income {
             IncomeType type,
             BigDecimal amountPerUnit,
             BigDecimal quantity,
+            LocalDate baseDate,
             LocalDate paymentDate) {
 
         this.portfolio = portfolio;
@@ -55,6 +56,7 @@ public class Income {
         this.type = type;
         this.amountPerUnit = amountPerUnit;
         this.quantity = quantity;
+        this.baseDate = baseDate;
         this.paymentDate = paymentDate;
     }
 
@@ -80,6 +82,10 @@ public class Income {
 
     public BigDecimal getQuantity() {
         return quantity;
+    }
+
+    public LocalDate getBaseDate() {
+        return baseDate;
     }
 
     public LocalDate getPaymentDate() {

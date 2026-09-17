@@ -15,6 +15,7 @@ public record IncomeResponse(
         BigDecimal amountPerUnit,
         BigDecimal quantity,
         BigDecimal totalAmount,
+        LocalDate baseDate,
         LocalDate paymentDate
 ) {
 }

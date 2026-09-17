@@ -4,6 +4,7 @@ import com.investmanager.api.transaction.Transaction;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,17 @@ public interface TransactionRepository
     })
     List<Transaction> findByPortfolioIdOrderByTransactionDateAscIdAsc(
             Long portfolioId
+    );
+
+    @EntityGraph(attributePaths = {
+            "portfolio",
+            "asset",
+            "broker"
+    })
+    List<Transaction> findByPortfolioIdAndAssetIdAndTransactionDateLessThanEqualOrderByTransactionDateAscIdAsc(
+            Long portfolioId,
+            Long assetId,
+            LocalDate transactionDate
     );
 
     @EntityGraph(attributePaths = {

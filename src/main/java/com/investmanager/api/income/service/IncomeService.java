@@ -7,14 +7,18 @@ import com.investmanager.api.income.Income;
 import com.investmanager.api.income.dto.IncomeRequest;
 import com.investmanager.api.income.dto.IncomeResponse;
 import com.investmanager.api.income.exception.IncomeNotFoundException;
+import com.investmanager.api.income.exception.NoPositionOnBaseDateException;
 import com.investmanager.api.income.mapper.IncomeMapper;
 import com.investmanager.api.income.repository.IncomeRepository;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
+import com.investmanager.api.position.dto.PositionResponse;
+import com.investmanager.api.position.service.PositionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -24,17 +28,20 @@ public class IncomeService {
     private final PortfolioRepository portfolioRepository;
     private final AssetRepository assetRepository;
     private final IncomeMapper incomeMapper;
+    private final PositionService positionService;
 
     public IncomeService(
             IncomeRepository incomeRepository,
             PortfolioRepository portfolioRepository,
             AssetRepository assetRepository,
-            IncomeMapper incomeMapper) {
+            IncomeMapper incomeMapper,
+            PositionService positionService) {
 
         this.incomeRepository = incomeRepository;
         this.portfolioRepository = portfolioRepository;
         this.assetRepository = assetRepository;
         this.incomeMapper = incomeMapper;
+        this.positionService = positionService;
     }
 
     public IncomeResponse create(
@@ -58,12 +65,33 @@ public class IncomeService {
                                 request.assetId()
                         ));
 
+        PositionResponse position =
+                positionService.calculatePositionByAssetAndDate(
+                        request.portfolioId(),
+                        request.assetId(),
+                        request.baseDate()
+                );
+
+        if (position == null
+                || position.quantity()
+                .compareTo(BigDecimal.ZERO) <= 0) {
+
+            throw new NoPositionOnBaseDateException(
+                    asset.getTicker(),
+                    request.baseDate()
+            );
+        }
+
+        BigDecimal eligibleQuantity =
+                position.quantity();
+
         Income income = new Income(
                 portfolio,
                 asset,
                 request.type(),
                 request.amountPerUnit(),
-                request.quantity(),
+                eligibleQuantity,
+                request.baseDate(),
                 request.paymentDate()
         );
 

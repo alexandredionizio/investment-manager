@@ -8,11 +8,14 @@ import com.investmanager.api.income.IncomeType;
 import com.investmanager.api.income.dto.IncomeRequest;
 import com.investmanager.api.income.dto.IncomeResponse;
 import com.investmanager.api.income.exception.IncomeNotFoundException;
+import com.investmanager.api.income.exception.NoPositionOnBaseDateException;
 import com.investmanager.api.income.mapper.IncomeMapper;
 import com.investmanager.api.income.repository.IncomeRepository;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
+import com.investmanager.api.position.dto.PositionResponse;
+import com.investmanager.api.position.service.PositionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +37,12 @@ class IncomeServiceTest {
 
     private static final Long USER_ID = 2L;
 
+    private static final LocalDate BASE_DATE =
+            LocalDate.of(2026, 9, 1);
+
+    private static final LocalDate PAYMENT_DATE =
+            LocalDate.of(2026, 9, 3);
+
     @Mock
     private IncomeRepository incomeRepository;
 
@@ -46,20 +55,25 @@ class IncomeServiceTest {
     @Mock
     private IncomeMapper incomeMapper;
 
+    @Mock
+    private PositionService positionService;
+
     private IncomeService incomeService;
 
     @BeforeEach
     void setUp() {
+
         incomeService = new IncomeService(
                 incomeRepository,
                 portfolioRepository,
                 assetRepository,
-                incomeMapper
+                incomeMapper,
+                positionService
         );
     }
 
     @Test
-    void shouldCreateIncome() {
+    void shouldCreateIncomeUsingPositionQuantityOnBaseDate() {
 
         Portfolio portfolio = new Portfolio();
 
@@ -71,8 +85,16 @@ class IncomeServiceTest {
                 1L,
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
+                BASE_DATE,
+                PAYMENT_DATE
+        );
+
+        PositionResponse position = new PositionResponse(
+                1L,
+                "ITUB4",
                 new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                new BigDecimal("30.00"),
+                new BigDecimal("3000.00")
         );
 
         when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
@@ -81,13 +103,20 @@ class IncomeServiceTest {
         when(assetRepository.findById(1L))
                 .thenReturn(Optional.of(asset));
 
+        when(positionService.calculatePositionByAssetAndDate(
+                1L,
+                1L,
+                BASE_DATE
+        )).thenReturn(position);
+
         Income savedIncome = new Income(
                 portfolio,
                 asset,
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(incomeRepository.save(any(Income.class)))
@@ -102,7 +131,8 @@ class IncomeServiceTest {
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(incomeMapper.toResponse(savedIncome))
@@ -119,6 +149,13 @@ class IncomeServiceTest {
         verify(assetRepository)
                 .findById(1L);
 
+        verify(positionService)
+                .calculatePositionByAssetAndDate(
+                        1L,
+                        1L,
+                        BASE_DATE
+                );
+
         verify(incomeRepository)
                 .save(any(Income.class));
 
@@ -134,8 +171,8 @@ class IncomeServiceTest {
                 1L,
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
-                new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(portfolioRepository.findByIdAndUserId(999L, USER_ID))
@@ -150,6 +187,7 @@ class IncomeServiceTest {
                 .findByIdAndUserId(999L, USER_ID);
 
         verifyNoInteractions(assetRepository);
+        verifyNoInteractions(positionService);
         verifyNoInteractions(incomeMapper);
 
         verify(incomeRepository, never())
@@ -166,8 +204,8 @@ class IncomeServiceTest {
                 999L,
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
-                new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
@@ -187,6 +225,110 @@ class IncomeServiceTest {
         verify(assetRepository)
                 .findById(999L);
 
+        verifyNoInteractions(positionService);
+
+        verify(incomeRepository, never())
+                .save(any(Income.class));
+
+        verifyNoInteractions(incomeMapper);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenPositionDoesNotExistOnBaseDate() {
+
+        Portfolio portfolio = new Portfolio();
+
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+
+        IncomeRequest request = new IncomeRequest(
+                1L,
+                1L,
+                IncomeType.DIVIDEND,
+                new BigDecimal("0.50"),
+                BASE_DATE,
+                PAYMENT_DATE
+        );
+
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
+
+        when(assetRepository.findById(1L))
+                .thenReturn(Optional.of(asset));
+
+        when(positionService.calculatePositionByAssetAndDate(
+                1L,
+                1L,
+                BASE_DATE
+        )).thenReturn(null);
+
+        assertThrows(
+                NoPositionOnBaseDateException.class,
+                () -> incomeService.create(request, USER_ID)
+        );
+
+        verify(positionService)
+                .calculatePositionByAssetAndDate(
+                        1L,
+                        1L,
+                        BASE_DATE
+                );
+
+        verify(incomeRepository, never())
+                .save(any(Income.class));
+
+        verifyNoInteractions(incomeMapper);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenPositionIsZeroOnBaseDate() {
+
+        Portfolio portfolio = new Portfolio();
+
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+
+        IncomeRequest request = new IncomeRequest(
+                1L,
+                1L,
+                IncomeType.DIVIDEND,
+                new BigDecimal("0.50"),
+                BASE_DATE,
+                PAYMENT_DATE
+        );
+
+        PositionResponse position = new PositionResponse(
+                1L,
+                "ITUB4",
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
+                .thenReturn(Optional.of(portfolio));
+
+        when(assetRepository.findById(1L))
+                .thenReturn(Optional.of(asset));
+
+        when(positionService.calculatePositionByAssetAndDate(
+                1L,
+                1L,
+                BASE_DATE
+        )).thenReturn(position);
+
+        assertThrows(
+                NoPositionOnBaseDateException.class,
+                () -> incomeService.create(request, USER_ID)
+        );
+
+        verify(positionService)
+                .calculatePositionByAssetAndDate(
+                        1L,
+                        1L,
+                        BASE_DATE
+                );
+
         verify(incomeRepository, never())
                 .save(any(Income.class));
 
@@ -202,7 +344,8 @@ class IncomeServiceTest {
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         IncomeResponse expectedResponse = new IncomeResponse(
@@ -214,7 +357,8 @@ class IncomeServiceTest {
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(incomeRepository.findByIdAndPortfolioUserId(1L, USER_ID))
@@ -261,7 +405,8 @@ class IncomeServiceTest {
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         IncomeResponse response = new IncomeResponse(
@@ -273,7 +418,8 @@ class IncomeServiceTest {
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(incomeRepository.findAllByPortfolioUserId(USER_ID))
@@ -306,7 +452,8 @@ class IncomeServiceTest {
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         IncomeResponse response = new IncomeResponse(
@@ -318,7 +465,8 @@ class IncomeServiceTest {
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
@@ -361,8 +509,8 @@ class IncomeServiceTest {
                 1L,
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
-                new BigDecimal("100"),
-                LocalDate.of(2026, 9, 3)
+                BASE_DATE,
+                PAYMENT_DATE
         );
 
         when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
@@ -377,6 +525,7 @@ class IncomeServiceTest {
                 .findByIdAndUserId(1L, USER_ID);
 
         verifyNoInteractions(assetRepository);
+        verifyNoInteractions(positionService);
         verifyNoInteractions(incomeMapper);
         verifyNoInteractions(incomeRepository);
     }

@@ -82,6 +82,7 @@ class IncomeRepositoryIntegrationTest {
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.50"),
                 new BigDecimal("100"),
+                LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 9, 3)
         );
 
@@ -95,7 +96,10 @@ class IncomeRepositoryIntegrationTest {
 
         Income found = foundIncome.get();
 
-        assertEquals(IncomeType.DIVIDEND, found.getType());
+        assertEquals(
+                IncomeType.DIVIDEND,
+                found.getType()
+        );
 
         assertEquals(
                 0,
@@ -107,6 +111,11 @@ class IncomeRepositoryIntegrationTest {
                 0,
                 new BigDecimal("100")
                         .compareTo(found.getQuantity())
+        );
+
+        assertEquals(
+                LocalDate.of(2026, 9, 1),
+                found.getBaseDate()
         );
 
         assertEquals(
@@ -161,6 +170,7 @@ class IncomeRepositoryIntegrationTest {
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.30"),
                 new BigDecimal("100"),
+                LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 9, 10)
         );
 
@@ -170,6 +180,7 @@ class IncomeRepositoryIntegrationTest {
                 IncomeType.JCP,
                 new BigDecimal("0.20"),
                 new BigDecimal("100"),
+                LocalDate.of(2026, 8, 28),
                 LocalDate.of(2026, 9, 5)
         );
 
@@ -179,6 +190,7 @@ class IncomeRepositoryIntegrationTest {
                 IncomeType.DIVIDEND,
                 new BigDecimal("0.10"),
                 new BigDecimal("100"),
+                LocalDate.of(2026, 9, 2),
                 LocalDate.of(2026, 9, 10)
         );
 

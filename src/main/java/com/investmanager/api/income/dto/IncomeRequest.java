@@ -22,9 +22,8 @@ public record IncomeRequest(
         @Positive(message = "O valor por unidade deve ser maior que zero")
         BigDecimal amountPerUnit,
 
-        @NotNull(message = "A quantidade é obrigatória")
-        @Positive(message = "A quantidade deve ser maior que zero")
-        BigDecimal quantity,
+        @NotNull(message = "A data-base é obrigatória")
+        LocalDate baseDate,
 
         @NotNull(message = "A data de pagamento é obrigatória")
         LocalDate paymentDate
