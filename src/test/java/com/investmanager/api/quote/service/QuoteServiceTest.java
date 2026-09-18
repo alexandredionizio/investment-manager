@@ -5,6 +5,7 @@ import com.investmanager.api.quote.client.dto.BrapiQuoteData;
 import com.investmanager.api.quote.client.dto.BrapiQuoteResponse;
 import com.investmanager.api.quote.client.dto.BrapiQuoteResult;
 import com.investmanager.api.quote.exception.QuoteNotFoundException;
+import com.investmanager.api.quote.service.QuoteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,8 +78,6 @@ public class QuoteServiceTest {
                 quoteService.getCurrentPrice("PETR4");
 
         assertEquals(new BigDecimal("47.00"), price);
-
-        verify(brapiClient).getQuote("PETR4");
 
         verify(brapiClient).getQuote("PETR4");
 
