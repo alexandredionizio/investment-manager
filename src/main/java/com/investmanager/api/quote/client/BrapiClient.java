@@ -14,6 +14,7 @@ import java.time.LocalDate;
 public class BrapiClient {
 
     private final RestClient restClient;
+    private final Object requestLock = new Object();
 
     public BrapiClient(
             RestClient.Builder builder,
@@ -29,17 +30,19 @@ public class BrapiClient {
 
     public BrapiQuoteResponse getQuote(String symbol) {
 
-        try {
-            return restClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/v2/stocks/quote")
-                            .queryParam("symbols", symbol)
-                            .build())
-                    .retrieve()
-                    .body(BrapiQuoteResponse.class);
+        synchronized (requestLock) {
+            try {
+                return restClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/api/v2/stocks/quote")
+                                .queryParam("symbols", symbol)
+                                .build())
+                        .retrieve()
+                        .body(BrapiQuoteResponse.class);
 
-        } catch (HttpClientErrorException.NotFound exception) {
-            throw new QuoteNotFoundException(symbol);
+            } catch (HttpClientErrorException.NotFound exception) {
+                throw new QuoteNotFoundException(symbol);
+            }
         }
     }
 
@@ -48,19 +51,21 @@ public class BrapiClient {
             String range,
             String interval) {
 
-        try {
-            return restClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/v2/stocks/historical")
-                            .queryParam("symbols", symbol)
-                            .queryParam("range", range)
-                            .queryParam("interval", interval)
-                            .build())
-                    .retrieve()
-                    .body(BrapiHistoricalResponse.class);
+        synchronized (requestLock) {
+            try {
+                return restClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/api/v2/stocks/historical")
+                                .queryParam("symbols", symbol)
+                                .queryParam("range", range)
+                                .queryParam("interval", interval)
+                                .build())
+                        .retrieve()
+                        .body(BrapiHistoricalResponse.class);
 
-        } catch (HttpClientErrorException.NotFound exception) {
-            throw new QuoteNotFoundException(symbol);
+            } catch (HttpClientErrorException.NotFound exception) {
+                throw new QuoteNotFoundException(symbol);
+            }
         }
     }
 
@@ -70,20 +75,22 @@ public class BrapiClient {
             LocalDate endDate,
             String interval) {
 
-        try {
-            return restClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/v2/stocks/historical")
-                            .queryParam("symbols", symbol)
-                            .queryParam("startDate", startDate)
-                            .queryParam("endDate", endDate)
-                            .queryParam("interval", interval)
-                            .build())
-                    .retrieve()
-                    .body(BrapiHistoricalResponse.class);
+        synchronized (requestLock) {
+            try {
+                return restClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/api/v2/stocks/historical")
+                                .queryParam("symbols", symbol)
+                                .queryParam("startDate", startDate)
+                                .queryParam("endDate", endDate)
+                                .queryParam("interval", interval)
+                                .build())
+                        .retrieve()
+                        .body(BrapiHistoricalResponse.class);
 
-        } catch (HttpClientErrorException.NotFound exception) {
-            throw new QuoteNotFoundException(symbol);
+            } catch (HttpClientErrorException.NotFound exception) {
+                throw new QuoteNotFoundException(symbol);
+            }
         }
     }
 }
