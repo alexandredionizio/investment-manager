@@ -1,6 +1,7 @@
 package com.investmanager.api.quote.client;
 
 import com.investmanager.api.quote.client.dto.BrapiHistoricalResponse;
+import com.investmanager.api.quote.client.dto.BrapiIndexHistoricalResponse;
 import com.investmanager.api.quote.client.dto.BrapiQuoteResponse;
 import com.investmanager.api.quote.exception.QuoteNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
@@ -87,6 +88,28 @@ public class BrapiClient {
                                 .build())
                         .retrieve()
                         .body(BrapiHistoricalResponse.class);
+
+            } catch (HttpClientErrorException.NotFound exception) {
+                throw new QuoteNotFoundException(symbol);
+            }
+        }
+    }
+
+    public BrapiIndexHistoricalResponse getIndexHistoricalQuotes(
+            String symbol,
+            String range,
+            String interval) {
+
+        synchronized (requestLock) {
+            try {
+                return restClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/api/quote/{symbol}")
+                                .queryParam("range", range)
+                                .queryParam("interval", interval)
+                                .build(symbol))
+                        .retrieve()
+                        .body(BrapiIndexHistoricalResponse.class);
 
             } catch (HttpClientErrorException.NotFound exception) {
                 throw new QuoteNotFoundException(symbol);
