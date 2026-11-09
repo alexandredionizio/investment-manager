@@ -35,17 +35,22 @@ public class QuoteServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private AssetQuoteSupport quoteSupport;
+
     private QuoteService quoteService;
 
     @BeforeEach
     void setUp() {
+
+        when(quoteSupport.requireSupported(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
 
         when(redisTemplate.opsForValue())
                 .thenReturn(valueOperations);
 
         quoteService = new QuoteService(
                 brapiClient,
-                redisTemplate
+                redisTemplate, quoteSupport
         );
     }
 
@@ -68,7 +73,7 @@ public class QuoteServiceTest {
         BrapiQuoteResponse response =
                 new BrapiQuoteResponse(List.of(result));
 
-        when(valueOperations.get("quote:PETR4"))
+        when(valueOperations.get("quote:brl:v2:PETR4"))
                 .thenReturn(null);
 
         when(brapiClient.getQuote("PETR4"))
@@ -82,7 +87,7 @@ public class QuoteServiceTest {
         verify(brapiClient).getQuote("PETR4");
 
         verify(valueOperations).set(
-                "quote:PETR4",
+                "quote:brl:v2:PETR4",
                 "47.00",
                 Duration.ofMinutes(5)
         );
@@ -91,7 +96,7 @@ public class QuoteServiceTest {
     @Test
     void shouldThrowExceptionWhenQuoteNotFound() {
 
-        when(valueOperations.get("quote:ABCXYZ"))
+        when(valueOperations.get("quote:brl:v2:ABCXYZ"))
                 .thenReturn(null);
 
         when(brapiClient.getQuote("ABCXYZ"))
@@ -111,7 +116,7 @@ public class QuoteServiceTest {
         BrapiQuoteResponse response =
                 new BrapiQuoteResponse(List.of());
 
-        when(valueOperations.get("quote:ABCXYZ"))
+        when(valueOperations.get("quote:brl:v2:ABCXYZ"))
                 .thenReturn(null);
 
         when(brapiClient.getQuote("ABCXYZ"))
@@ -128,7 +133,7 @@ public class QuoteServiceTest {
     @Test
     void shouldReturnPriceFromCacheWithoutCallingBrapi() {
 
-        when(valueOperations.get("quote:PETR4"))
+        when(valueOperations.get("quote:brl:v2:PETR4"))
                 .thenReturn("47.00");
 
         BigDecimal price =
@@ -138,4 +143,15 @@ public class QuoteServiceTest {
 
         verifyNoInteractions(brapiClient);
     }
+
+    @Test
+    void shouldRejectInvalidCurrentQuoteResponseInsteadOfReportingMissingQuote() {
+        when(brapiClient.getQuote("ITUB4")).thenReturn(null, new BrapiQuoteResponse(null),
+                new BrapiQuoteResponse(List.of(new BrapiQuoteResult("ITUB4", "ITUB4", null))));
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThrows(IllegalStateException.class, () -> quoteService.getCurrentPrice("ITUB4"));
+        }
+        verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+    }
+
 }

@@ -9,9 +9,13 @@ import com.investmanager.api.portfoliohistory.returnrate.PortfolioReturnResponse
 import com.investmanager.api.portfoliohistory.returnrate.PortfolioReturnSeriesPoint;
 import com.investmanager.api.portfoliohistory.returnrate.PortfolioReturnService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +32,9 @@ public class BenchmarkComparisonService {
     private final CdiReturnCalculator cdiReturnCalculator;
     private final IbovReturnCalculator ibovReturnCalculator;
 
+    private final Clock clock;
+
+    @Autowired
     public BenchmarkComparisonService(
             PortfolioReturnService portfolioReturnService,
             CdiBenchmarkService cdiBenchmarkService,
@@ -35,6 +42,14 @@ public class BenchmarkComparisonService {
             CdiReturnCalculator cdiReturnCalculator,
             IbovReturnCalculator ibovReturnCalculator) {
 
+        this(portfolioReturnService, cdiBenchmarkService, ibovBenchmarkService,
+                cdiReturnCalculator, ibovReturnCalculator, Clock.system(ZoneId.of("America/Sao_Paulo")));
+    }
+
+    BenchmarkComparisonService(PortfolioReturnService portfolioReturnService,
+            CdiBenchmarkService cdiBenchmarkService, IbovBenchmarkService ibovBenchmarkService,
+            CdiReturnCalculator cdiReturnCalculator, IbovReturnCalculator ibovReturnCalculator, Clock clock) {
+        this.clock = clock;
         this.portfolioReturnService = portfolioReturnService;
         this.cdiBenchmarkService = cdiBenchmarkService;
         this.ibovBenchmarkService = ibovBenchmarkService;
@@ -59,6 +74,10 @@ public class BenchmarkComparisonService {
                         customEndDate,
                         endDate
                 );
+
+        if (portfolioReturns.points().isEmpty()) {
+            return List.of();
+        }
 
         LocalDate effectiveStartDate =
                 portfolioReturns.startDate();
@@ -166,10 +185,12 @@ public class BenchmarkComparisonService {
                 new ArrayList<>();
 
         BigDecimal lastCdiReturn =
-                BigDecimal.ZERO;
+                cdiQuotes.stream().anyMatch(q -> !q.getDate().isAfter(effectiveStartDate))
+                        ? BigDecimal.ZERO : null;
 
         BigDecimal lastIbovReturn =
-                BigDecimal.ZERO;
+                ibovQuotes.stream().anyMatch(q -> !q.getDate().isAfter(effectiveStartDate))
+                        ? BigDecimal.ZERO : null;
 
         for (PortfolioReturnSeriesPoint portfolioPoint
                 : portfolioReturns.points()) {
@@ -193,13 +214,21 @@ public class BenchmarkComparisonService {
                     new BenchmarkComparisonPointResponse(
                             date,
                             portfolioPoint.cumulativeReturn(),
-                            lastCdiReturn,
-                            lastIbovReturn
+                            publicationPending(date, cdiQuotes) ? null : lastCdiReturn,
+                            publicationPending(date, ibovQuotes) ? null : lastIbovReturn
                     )
             );
         }
 
         return result;
+    }
+
+    private boolean publicationPending(LocalDate date, List<BenchmarkQuote> quotes) {
+        LocalDate today = LocalDate.now(clock);
+        if (date.isAfter(today)) return true;
+        // An empty current business day is not yet evidence of a closed publication day.
+        return date.equals(today) && date.getDayOfWeek() != DayOfWeek.SATURDAY
+                && date.getDayOfWeek() != DayOfWeek.SUNDAY && !hasQuoteOnDate(quotes, date);
     }
 
     private boolean hasQuoteOnDate(
@@ -252,9 +281,10 @@ public class BenchmarkComparisonService {
         List<BenchmarkQuote> result =
                 new ArrayList<>();
 
-        if (previousQuote != null) {
-            result.add(previousQuote);
+        if (previousQuote == null) {
+            return List.of();
         }
+        result.add(previousQuote);
 
         orderedQuotes.stream()
                 .filter(quote ->
@@ -307,9 +337,10 @@ public class BenchmarkComparisonService {
         List<BenchmarkQuote> result =
                 new ArrayList<>();
 
-        if (previousQuote != null) {
-            result.add(previousQuote);
+        if (previousQuote == null) {
+            return List.of();
         }
+        result.add(previousQuote);
 
         orderedQuotes.stream()
                 .filter(quote ->

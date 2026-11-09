@@ -31,3 +31,23 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Variáveis de ambiente e credenciais
+.env
+.env.*
+!.env.example
+
+# Segredos e certificados locais
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.bak
+
+# Dados locais
+postgres_data/
+redis_data/

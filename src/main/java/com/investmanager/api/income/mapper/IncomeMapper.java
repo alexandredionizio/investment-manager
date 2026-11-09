@@ -3,6 +3,8 @@ package com.investmanager.api.income.mapper;
 import com.investmanager.api.income.Income;
 import com.investmanager.api.income.dto.IncomeResponse;
 import org.mapstruct.Mapper;
+import org.mapstruct.Context;
+import java.time.LocalDate;
 import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
@@ -21,5 +23,6 @@ public interface IncomeMapper {
          * quantity = 100
          * 0.35 × 100 = 35.00 => totalAmount
          */
-    IncomeResponse toResponse(Income income);
+    @Mapping(target = "received", expression = "java(!income.getPaymentDate().isAfter(today))")
+    IncomeResponse toResponse(Income income, @Context LocalDate today);
 }

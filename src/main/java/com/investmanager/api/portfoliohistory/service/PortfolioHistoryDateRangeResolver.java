@@ -43,7 +43,7 @@ public class PortfolioHistoryDateRangeResolver {
             case TWO_YEARS -> endDate.minusYears(2);
             case FIVE_YEARS -> endDate.minusYears(5);
             case TEN_YEARS -> endDate.minusYears(10);
-            case ALL -> resolveAll(firstTransactionDate);
+            case ALL -> resolveAll(firstTransactionDate, endDate);
             case CUSTOM -> throw new IllegalStateException(
                     "CUSTOM já deveria ter sido tratado"
             );
@@ -77,15 +77,9 @@ public class PortfolioHistoryDateRangeResolver {
         );
     }
 
-    private LocalDate resolveAll(
-            LocalDate firstTransactionDate) {
-
-        if (firstTransactionDate == null) {
-            throw new IllegalArgumentException(
-                    "Não é possível determinar o início do histórico sem transações"
-            );
-        }
-
-        return firstTransactionDate;
+    private LocalDate resolveAll(LocalDate firstTransactionDate, LocalDate endDate) {
+        // Without activity in the interval, services return an empty series.
+        return firstTransactionDate == null || firstTransactionDate.isAfter(endDate)
+                ? endDate : firstTransactionDate;
     }
 }

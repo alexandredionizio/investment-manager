@@ -76,6 +76,12 @@ public class Transaction {
         this.transactionDate = transactionDate;
     }
 
+    @Column(name = "recorded_ticker", length = 20)
+    private String recordedTicker;
+
+    public String getRecordedTicker() { return recordedTicker == null ? (asset == null ? null : asset.getTicker()) : recordedTicker; }
+    public void setRecordedTicker(String value) { this.recordedTicker = value; }
+
     public Long getId() {
         return id;
     }

@@ -9,26 +9,29 @@ import com.investmanager.api.broker.repository.BrokerRepository;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
-import com.investmanager.api.position.dto.PositionResponse;
 import com.investmanager.api.position.exception.InsufficientPositionException;
-import com.investmanager.api.position.service.PositionService;
 import com.investmanager.api.transaction.Transaction;
 import com.investmanager.api.transaction.TransactionType;
+import com.investmanager.api.transaction.concurrency.PortfolioAssetLockManager;
+import com.investmanager.api.transaction.concurrency.TransactionCreationExecutor;
 import com.investmanager.api.transaction.dto.TransactionRequest;
 import com.investmanager.api.transaction.dto.TransactionResponse;
 import com.investmanager.api.transaction.exception.TransactionNotFoundException;
 import com.investmanager.api.transaction.mapper.TransactionMapper;
 import com.investmanager.api.transaction.repository.TransactionRepository;
+import com.investmanager.api.transaction.validation.TransactionHistoryValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,23 +56,48 @@ class TransactionServiceTest {
     private TransactionMapper transactionMapper;
 
     @Mock
-    private PositionService positionService;
-
-    @Mock
     private BrokerRepository brokerRepository;
 
+    @Mock
+    private PortfolioAssetLockManager lockManager;
+
+    @Mock
+    private TransactionCreationExecutor creationExecutor;
+
+    @Mock private com.investmanager.api.income.service.IncomeEligibilityValidator incomeEligibilityValidator;
     private TransactionService transactionService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(creationExecutor.execute(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0, Supplier.class).get());
         transactionService = new TransactionService(
                 transactionRepository,
                 portfolioRepository,
                 assetRepository,
                 brokerRepository,
                 transactionMapper,
-                positionService
+                new TransactionHistoryValidator(),
+                lockManager,
+                creationExecutor, incomeEligibilityValidator
         );
+    }
+
+    @Test
+    void shouldNotSaveWhenIncomeEligibilityConflicts() {
+        var request = new TransactionRequest(1L, 1L, 1L, TransactionType.BUY,
+                BigDecimal.ONE, BigDecimal.TEN, LocalDate.of(2026, 9, 5));
+        when(portfolioRepository.findByIdAndUserId(1L, USER_ID)).thenReturn(Optional.of(new Portfolio()));
+        when(assetRepository.findById(1L)).thenReturn(Optional.of(new Asset()));
+        when(brokerRepository.findById(1L)).thenReturn(Optional.of(new Broker()));
+        doThrow(new com.investmanager.api.income.exception.IncomeEligibilityConflictException(7L, LocalDate.of(2026, 9, 10)))
+                .when(incomeEligibilityValidator).validate(eq(1L), eq(1L), any(Transaction.class));
+        assertThrows(com.investmanager.api.income.exception.IncomeEligibilityConflictException.class,
+                () -> transactionService.create(request, USER_ID));
+        var order = inOrder(lockManager, incomeEligibilityValidator);
+        order.verify(lockManager).acquire(1L, 1L);
+        order.verify(incomeEligibilityValidator).validate(eq(1L), eq(1L), any(Transaction.class));
+        verify(transactionRepository, never()).save(any());
     }
 
     @Test
@@ -141,8 +169,12 @@ class TransactionServiceTest {
 
         verify(assetRepository).findById(1L);
         verify(brokerRepository).findById(1L);
-        verify(transactionRepository).save(any(Transaction.class));
+        var creationOrder = inOrder(lockManager, transactionRepository);
+        creationOrder.verify(lockManager).acquire(1L, 1L);
+        creationOrder.verify(transactionRepository).save(any(Transaction.class));
         verify(transactionMapper).toResponse(savedTransaction);
+        verify(transactionRepository, never())
+                .findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(any(), any());
     }
 
     @Test
@@ -432,16 +464,8 @@ class TransactionServiceTest {
         when(brokerRepository.findById(1L))
                 .thenReturn(Optional.of(broker));
 
-        PositionResponse currentPosition = new PositionResponse(
-                1L,
-                "ITUB4",
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO
-        );
-
-        when(positionService.calculatePositionByAsset(1L, 1L))
-                .thenReturn(currentPosition);
+        when(transactionRepository.findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(1L, 1L))
+                .thenReturn(List.of());
 
         assertThrows(
                 InsufficientPositionException.class,
@@ -455,7 +479,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    void shouldCreateSellTransactionWhenPositionIsSufficient() {
+    void shouldCreateValidRetroactiveSaleUsingRealValidator() {
 
         Portfolio portfolio = new Portfolio();
 
@@ -484,16 +508,13 @@ class TransactionServiceTest {
         when(brokerRepository.findById(1L))
                 .thenReturn(Optional.of(broker));
 
-        PositionResponse currentPosition = new PositionResponse(
-                1L,
-                "ITUB4",
-                new BigDecimal("100"),
-                new BigDecimal("37.50"),
-                new BigDecimal("3750.00")
-        );
-
-        when(positionService.calculatePositionByAsset(1L, 1L))
-                .thenReturn(currentPosition);
+        when(transactionRepository.findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(1L, 1L))
+                .thenReturn(List.of(
+                        new Transaction(portfolio, asset, TransactionType.BUY,
+                                new BigDecimal("100"), new BigDecimal("37.50"), LocalDate.of(2026, 9, 1)),
+                        new Transaction(portfolio, asset, TransactionType.SELL,
+                                new BigDecimal("20"), new BigDecimal("45.00"), LocalDate.of(2026, 9, 10))
+                ));
 
         Transaction savedTransaction = new Transaction(
                 portfolio,
@@ -529,8 +550,20 @@ class TransactionServiceTest {
 
         assertEquals(expectedResponse, result);
 
-        verify(transactionRepository)
-                .save(any(Transaction.class));
+        ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
+        var inOrder = inOrder(lockManager, transactionRepository);
+        inOrder.verify(lockManager).acquire(1L, 1L);
+        inOrder.verify(transactionRepository)
+                .findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(1L, 1L);
+        inOrder.verify(transactionRepository).save(captor.capture());
+        Transaction candidate = captor.getValue();
+        assertEquals(portfolio, candidate.getPortfolio());
+        assertEquals(asset, candidate.getAsset());
+        assertEquals(broker, candidate.getBroker());
+        assertEquals(request.type(), candidate.getType());
+        assertEquals(request.quantity(), candidate.getQuantity());
+        assertEquals(request.unitPrice(), candidate.getUnitPrice());
+        assertEquals(request.transactionDate(), candidate.getTransactionDate());
 
         verify(brokerRepository).findById(1L);
     }
@@ -570,6 +603,63 @@ class TransactionServiceTest {
         verify(transactionRepository, never())
                 .save(any(Transaction.class));
 
-        verifyNoInteractions(positionService);
+        verifyNoInteractions(transactionMapper);
+    }
+
+    @Test
+    void shouldNotSaveSaleBeforeFirstPurchaseUsingRealValidator() {
+        Portfolio portfolio = new Portfolio();
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+        Broker broker = new Broker();
+        TransactionRequest request = new TransactionRequest(
+                7L, 9L, 1L, TransactionType.SELL,
+                new BigDecimal("50"), new BigDecimal("45"), LocalDate.of(2026, 9, 1));
+
+        when(portfolioRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(portfolio));
+        when(assetRepository.findById(9L)).thenReturn(Optional.of(asset));
+        when(brokerRepository.findById(1L)).thenReturn(Optional.of(broker));
+        when(transactionRepository.findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(7L, 9L))
+                .thenReturn(List.of(new Transaction(portfolio, asset, TransactionType.BUY,
+                        new BigDecimal("100"), new BigDecimal("35"), LocalDate.of(2026, 9, 10))));
+
+        InsufficientPositionException exception = assertThrows(InsufficientPositionException.class,
+                () -> transactionService.create(request, USER_ID));
+
+        assertEquals("Posição insuficiente para realizar a venda do ativo: ITUB4", exception.getMessage());
+        verify(transactionRepository).findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(7L, 9L);
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionMapper);
+    }
+
+    @Test
+    void shouldNotSaveRetroactiveSaleThatInvalidatesLaterSaleUsingRealValidator() {
+        Portfolio portfolio = new Portfolio();
+        Asset asset = new Asset();
+        asset.setTicker("ITUB4");
+        Broker broker = new Broker();
+        TransactionRequest request = new TransactionRequest(
+                7L, 9L, 1L, TransactionType.SELL,
+                new BigDecimal("50"), new BigDecimal("45"), LocalDate.of(2026, 9, 5));
+
+        when(portfolioRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(portfolio));
+        when(assetRepository.findById(9L)).thenReturn(Optional.of(asset));
+        when(brokerRepository.findById(1L)).thenReturn(Optional.of(broker));
+        when(transactionRepository.findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(7L, 9L))
+                .thenReturn(List.of(
+                        new Transaction(portfolio, asset, TransactionType.BUY,
+                                new BigDecimal("100"), new BigDecimal("35"), LocalDate.of(2026, 9, 1)),
+                        new Transaction(portfolio, asset, TransactionType.SELL,
+                                new BigDecimal("80"), new BigDecimal("45"), LocalDate.of(2026, 9, 10)),
+                        new Transaction(portfolio, asset, TransactionType.BUY,
+                                new BigDecimal("100"), new BigDecimal("35"), LocalDate.of(2026, 9, 20))
+                ));
+
+        assertThrows(InsufficientPositionException.class,
+                () -> transactionService.create(request, USER_ID));
+
+        verify(transactionRepository).findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(7L, 9L);
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionMapper);
     }
 }

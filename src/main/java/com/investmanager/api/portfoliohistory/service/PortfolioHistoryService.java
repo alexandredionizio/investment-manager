@@ -1,6 +1,7 @@
 package com.investmanager.api.portfoliohistory.service;
 
 import com.investmanager.api.asset.Asset;
+import com.investmanager.api.portfoliohistory.returnrate.HistoricalQuoteUnavailableException;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.portfoliohistory.dto.PortfolioHistoryResponse;
@@ -94,6 +95,12 @@ public class PortfolioHistoryService {
                         dateRange.endDate()
                 );
 
+        if (firstTransactionDate == null || firstTransactionDate.isAfter(dateRange.endDate())) {
+            return new PortfolioHistoryResponse(
+                    portfolioId, period, dateRange.startDate(), dateRange.endDate(), granularity, List.of()
+            );
+        }
+
         List<LocalDate> historyDates =
                 dateGenerator.generate(
                         dateRange.startDate(),
@@ -151,6 +158,8 @@ public class PortfolioHistoryService {
         return transactionsByAsset
                 .keySet()
                 .stream()
+                .filter(asset -> positionCalculator.requiresQuotes(
+                        transactionsByAsset.get(asset), dateRange.startDate(), dateRange.endDate()))
                 .collect(
                         Collectors.toMap(
                                 asset -> asset,
@@ -203,7 +212,7 @@ public class PortfolioHistoryService {
                     );
 
             if (closePrice == null) {
-                continue;
+                throw new HistoricalQuoteUnavailableException(asset.getTicker(), date);
             }
 
             BigDecimal assetValue =

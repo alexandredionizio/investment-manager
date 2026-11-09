@@ -290,18 +290,11 @@ class PortfolioHistoryDateRangeResolverTest {
     }
 
     @Test
-    void shouldThrowExceptionWhenAllHasNoTransactions() {
-
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> resolver.resolve(
-                        PortfolioHistoryPeriod.ALL,
-                        LocalDate.of(2026, 9, 18),
-                        null,
-                        null,
-                        null
-                )
-        );
+    void shouldResolveEmptyAllToReferenceDate() {
+        LocalDate endDate = LocalDate.of(2026, 9, 21);
+        var range = resolver.resolve(PortfolioHistoryPeriod.ALL, endDate, null, null, null);
+        assertEquals(endDate, range.startDate());
+        assertEquals(endDate, range.endDate());
     }
 
     @Test

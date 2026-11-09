@@ -26,6 +26,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import com.investmanager.api.transaction.concurrency.PortfolioAssetLockManager;
+import com.investmanager.api.transaction.concurrency.TransactionCreationExecutor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -58,17 +64,21 @@ class IncomeServiceTest {
     @Mock
     private PositionService positionService;
 
+    @Mock private PortfolioAssetLockManager lockManager;
+    @Mock private TransactionCreationExecutor creationExecutor;
     private IncomeService incomeService;
 
     @BeforeEach
     void setUp() {
 
+        lenient().when(creationExecutor.execute(any())).thenAnswer(inv -> inv.getArgument(0, Supplier.class).get());
         incomeService = new IncomeService(
                 incomeRepository,
                 portfolioRepository,
                 assetRepository,
                 incomeMapper,
-                positionService
+                positionService, lockManager, creationExecutor,
+                new IncomePaymentPolicy(Clock.fixed(Instant.parse("2026-09-03T15:00:00Z"), ZoneId.of("America/Sao_Paulo")))
         );
     }
 
@@ -132,10 +142,10 @@ class IncomeServiceTest {
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
                 BASE_DATE,
-                PAYMENT_DATE
+                PAYMENT_DATE, true
         );
 
-        when(incomeMapper.toResponse(savedIncome))
+        when(incomeMapper.toResponse(savedIncome, PAYMENT_DATE))
                 .thenReturn(expectedResponse);
 
         IncomeResponse result =
@@ -160,7 +170,15 @@ class IncomeServiceTest {
                 .save(any(Income.class));
 
         verify(incomeMapper)
-                .toResponse(savedIncome);
+                .toResponse(savedIncome, PAYMENT_DATE);
+    }
+
+    @Test
+    void shouldRejectPaymentBeforeBaseDateWithoutPersistence() {
+        var request = new IncomeRequest(1L, 1L, IncomeType.DIVIDEND, BigDecimal.ONE, BASE_DATE, BASE_DATE.minusDays(1));
+        assertThrows(com.investmanager.api.income.exception.InvalidIncomeDatesException.class,
+                () -> incomeService.create(request, USER_ID));
+        verifyNoInteractions(portfolioRepository, assetRepository, positionService, incomeRepository, lockManager);
     }
 
     @Test
@@ -358,13 +376,13 @@ class IncomeServiceTest {
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
                 BASE_DATE,
-                PAYMENT_DATE
+                PAYMENT_DATE, true
         );
 
         when(incomeRepository.findByIdAndPortfolioUserId(1L, USER_ID))
                 .thenReturn(Optional.of(income));
 
-        when(incomeMapper.toResponse(income))
+        when(incomeMapper.toResponse(income, PAYMENT_DATE))
                 .thenReturn(expectedResponse);
 
         IncomeResponse result =
@@ -376,7 +394,7 @@ class IncomeServiceTest {
                 .findByIdAndPortfolioUserId(1L, USER_ID);
 
         verify(incomeMapper)
-                .toResponse(income);
+                .toResponse(income, PAYMENT_DATE);
     }
 
     @Test
@@ -419,13 +437,13 @@ class IncomeServiceTest {
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
                 BASE_DATE,
-                PAYMENT_DATE
+                PAYMENT_DATE, true
         );
 
         when(incomeRepository.findAllByPortfolioUserId(USER_ID))
                 .thenReturn(List.of(income));
 
-        when(incomeMapper.toResponse(income))
+        when(incomeMapper.toResponse(income, PAYMENT_DATE))
                 .thenReturn(response);
 
         List<IncomeResponse> result =
@@ -438,7 +456,7 @@ class IncomeServiceTest {
                 .findAllByPortfolioUserId(USER_ID);
 
         verify(incomeMapper)
-                .toResponse(income);
+                .toResponse(income, PAYMENT_DATE);
     }
 
     @Test
@@ -466,7 +484,7 @@ class IncomeServiceTest {
                 new BigDecimal("100"),
                 new BigDecimal("50.00"),
                 BASE_DATE,
-                PAYMENT_DATE
+                PAYMENT_DATE, true
         );
 
         when(portfolioRepository.findByIdAndUserId(1L, USER_ID))
@@ -479,7 +497,7 @@ class IncomeServiceTest {
                 ))
                 .thenReturn(List.of(income));
 
-        when(incomeMapper.toResponse(income))
+        when(incomeMapper.toResponse(income, PAYMENT_DATE))
                 .thenReturn(response);
 
         List<IncomeResponse> result =
@@ -498,7 +516,7 @@ class IncomeServiceTest {
                 );
 
         verify(incomeMapper)
-                .toResponse(income);
+                .toResponse(income, PAYMENT_DATE);
     }
 
     @Test

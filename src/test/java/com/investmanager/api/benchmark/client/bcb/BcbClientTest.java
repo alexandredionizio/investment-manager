@@ -125,13 +125,17 @@ class BcbClientTest {
         server.verify();
     }
 
-    @Test
-    void shouldReturnEmptyListWhenBcbReturnsNotFound() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "Value(s) not found",
+            "br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Value(s) not found"
+    })
+    void shouldReturnEmptyListWhenBcbReturnsNotFound(String detail) {
 
         server.expect(once(), requestTo(
                         "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados"
                                 + "?formato=json"
-                                + "&dataInicial=22/09/2026"
+                                + "&dataInicial=21/09/2026"
                                 + "&dataFinal=22/09/2026"
                 ))
                 .andExpect(method(GET))
@@ -142,10 +146,10 @@ class BcbClientTest {
                                         {
                                           "erro": {
                                             "statusCode": 404,
-                                            "detail": "Value(s) not found"
+                                            "detail": "%s"
                                           }
                                         }
-                                        """)
+                                        """.formatted(detail))
                 );
 
         List<BcbSeriesPointResponse> result =
@@ -158,6 +162,110 @@ class BcbClientTest {
         assertNotNull(result);
         assertEquals(0, result.size());
 
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "Value(s) not found",
+            "br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Value(s) not found"
+    })
+    void shouldReturnEmptyListWhenBcbReportsNoValuesInSuccessfulResponse(String detail) {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(withSuccess("""
+                        {"erro":{"statusCode":404,"detail":"%s"}}
+                        """.formatted(detail), APPLICATION_JSON));
+        assertEquals(List.of(), bcbClient.getSeries(12, LocalDate.of(2026, 10, 30), LocalDate.of(2026, 10, 31)));
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"null", "{}", "[{}]", "[null]",
+            "{\"erro\":{\"statusCode\":404,\"detail\":\"Resource not found\"}}",
+            "{\"erro\":{\"statusCode\":500,\"detail\":\"Value(s) not found\"}}",
+            "{\"erro\":{\"statusCode\":404,\"detail\":\"other.Exception: Value(s) not found\"}}"})
+    void shouldRejectInvalidSuccessfulResponse(String response) {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(withSuccess(response, APPLICATION_JSON));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> bcbClient.getSeries(12, LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 22)));
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {400, 401, 403, 404, 500})
+    void shouldNotTreatArbitraryHttpErrorAsMissingBenchmark(int status) {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(withStatus(HttpStatus.valueOf(status)).contentType(APPLICATION_JSON).body("{}"));
+        org.junit.jupiter.api.Assertions.assertThrows(com.investmanager.api.shared.integration.ExternalIntegrationException.class,
+                () -> bcbClient.getSeries(12, LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 22)));
+        server.verify();
+    }
+
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "Resource not found",
+            "other.Exception: Value(s) not found",
+            "br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Database unavailable"
+    })
+    void shouldNotTreatOtherNotFoundDetailsAsMissingValues(String detail) {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(APPLICATION_JSON)
+                        .body("""
+                                {"erro":{"statusCode":404,"detail":"%s"}}
+                                """.formatted(detail)));
+        org.junit.jupiter.api.Assertions.assertThrows(com.investmanager.api.shared.integration.ExternalIntegrationException.class,
+                () -> bcbClient.getSeries(12, LocalDate.of(2026, 10, 30), LocalDate.of(2026, 10, 31)));
+        server.verify();
+    }
+
+    @Test
+    void shouldNotTreatDifferentProviderErrorCodeAsMissingValues() {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(APPLICATION_JSON)
+                        .body("""
+                                {"erro":{"statusCode":500,"detail":"br.gov.bcb.pec.sgs.comum.excecoes.SGSNegocioException: Value(s) not found"}}
+                                """));
+        org.junit.jupiter.api.Assertions.assertThrows(com.investmanager.api.shared.integration.ExternalIntegrationException.class,
+                () -> bcbClient.getSeries(12, LocalDate.of(2026, 10, 30), LocalDate.of(2026, 10, 31)));
+        server.verify();
+    }
+
+    @Test
+    void shouldWidenSingleDayQueryAndReturnOnlyRequestedDay() {
+        server.expect(requestTo("https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados"
+                        + "?formato=json&dataInicial=29/10/2026&dataFinal=30/10/2026"))
+                .andRespond(withSuccess("""
+                        [{"data":"29/10/2026","valor":"0.05"},{"data":"30/10/2026","valor":"0.06"}]
+                        """, APPLICATION_JSON));
+        var result = bcbClient.getSeries(12, LocalDate.of(2026, 10, 30), LocalDate.of(2026, 10, 30));
+        assertEquals(1, result.size());
+        assertEquals("30/10/2026", result.getFirst().date());
+        assertEquals("0.06", result.getFirst().value());
+        server.verify();
+    }
+
+    @Test
+    void shouldNotSubstitutePreviousDayForUnpublishedRequestedDay() {
+        server.expect(requestTo("https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados"
+                        + "?formato=json&dataInicial=29/10/2026&dataFinal=30/10/2026"))
+                .andRespond(withSuccess("""
+                        [{"data":"29/10/2026","valor":"0.05"}]
+                        """, APPLICATION_JSON));
+        assertEquals(List.of(), bcbClient.getSeries(12, LocalDate.of(2026, 10, 30), LocalDate.of(2026, 10, 30)));
+        server.verify();
+    }
+
+
+    @Test
+    void shouldRejectImpossibleCalendarDateInsteadOfNormalizingIt() {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(withSuccess("""
+                        [{"data":"31/02/2026","valor":"0.05"}]
+                        """, APPLICATION_JSON));
+        org.junit.jupiter.api.Assertions.assertThrows(com.investmanager.api.shared.integration.ExternalIntegrationException.class,
+                () -> bcbClient.getSeries(12, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)));
         server.verify();
     }
 }

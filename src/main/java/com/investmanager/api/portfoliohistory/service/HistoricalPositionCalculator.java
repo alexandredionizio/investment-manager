@@ -11,6 +11,13 @@ import java.util.List;
 @Component
 public class HistoricalPositionCalculator {
 
+    public boolean requiresQuotes(List<Transaction> transactions, LocalDate startDate, LocalDate endDate) {
+        return calculateQuantity(transactions, startDate.minusDays(1)).signum() > 0
+                || transactions.stream().anyMatch(transaction ->
+                    !transaction.getTransactionDate().isBefore(startDate)
+                    && !transaction.getTransactionDate().isAfter(endDate));
+    }
+
     public BigDecimal calculateQuantity(
             List<Transaction> transactions,
             LocalDate date) {

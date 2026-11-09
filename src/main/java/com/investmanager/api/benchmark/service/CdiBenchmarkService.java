@@ -4,15 +4,12 @@ import com.investmanager.api.benchmark.client.bcb.BcbClient;
 import com.investmanager.api.benchmark.client.bcb.BcbSeriesPointResponse;
 import com.investmanager.api.benchmark.entity.BenchmarkQuote;
 import com.investmanager.api.benchmark.model.BenchmarkType;
-import com.investmanager.api.benchmark.repository.BenchmarkQuoteRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class CdiBenchmarkService {
@@ -20,94 +17,32 @@ public class CdiBenchmarkService {
     private static final int CDI_SERIES_CODE = 12;
 
     private static final DateTimeFormatter BCB_DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(java.time.format.ResolverStyle.STRICT);
 
     private final BcbClient bcbClient;
-    private final BenchmarkQuoteRepository benchmarkQuoteRepository;
+    private final BenchmarkHistorySynchronizer synchronizer;
 
     public CdiBenchmarkService(
             BcbClient bcbClient,
-            BenchmarkQuoteRepository benchmarkQuoteRepository) {
+            BenchmarkHistorySynchronizer synchronizer) {
 
         this.bcbClient = bcbClient;
-        this.benchmarkQuoteRepository = benchmarkQuoteRepository;
+        this.synchronizer = synchronizer;
     }
 
-    @Transactional
-    public List<BenchmarkQuote> load(
-            LocalDate startDate,
-            LocalDate endDate) {
-
-        Optional<BenchmarkQuote> firstStoredQuote =
-                benchmarkQuoteRepository
-                        .findTopByBenchmarkOrderByDateAsc(
-                                BenchmarkType.CDI
-                        );
-
-        Optional<BenchmarkQuote> lastStoredQuote =
-                benchmarkQuoteRepository
-                        .findTopByBenchmarkOrderByDateDesc(
-                                BenchmarkType.CDI
-                        );
-
-        if (firstStoredQuote.isEmpty()
-                || lastStoredQuote.isEmpty()) {
-
-            fetchAndSave(startDate, endDate);
-
-        } else {
-
-            LocalDate firstStoredDate =
-                    firstStoredQuote.get().getDate();
-
-            LocalDate lastStoredDate =
-                    lastStoredQuote.get().getDate();
-
-            if (startDate.isBefore(firstStoredDate)) {
-
-                LocalDate missingEndDate =
-                        firstStoredDate.minusDays(1);
-
-                fetchAndSave(
-                        startDate,
-                        missingEndDate
-                );
-            }
-
-            if (endDate.isAfter(lastStoredDate)) {
-
-                LocalDate missingStartDate =
-                        lastStoredDate.plusDays(1);
-
-                fetchAndSave(
-                        missingStartDate,
-                        endDate
-                );
-            }
-        }
-
-        return benchmarkQuoteRepository
-                .findByBenchmarkAndDateBetweenOrderByDateAsc(
-                        BenchmarkType.CDI,
-                        startDate,
-                        endDate
-                );
+    public List<BenchmarkQuote> load(LocalDate startDate, LocalDate endDate) {
+        return synchronizer.load(BenchmarkType.CDI, startDate, endDate, this::fetch);
     }
 
-    private void fetchAndSave(
-            LocalDate startDate,
-            LocalDate endDate) {
-
-        if (startDate.isAfter(endDate)) {
-            return;
-        }
-
+    private List<BenchmarkQuote> fetch(LocalDate startDate, LocalDate endDate) {
         List<BcbSeriesPointResponse> response =
                 bcbClient.getSeries(
                         CDI_SERIES_CODE,
                         startDate,
                         endDate
                 );
+
+        var additions = new java.util.ArrayList<BenchmarkQuote>();
 
         for (BcbSeriesPointResponse point : response) {
 
@@ -120,14 +55,9 @@ public class CdiBenchmarkService {
             BigDecimal value =
                     new BigDecimal(point.value());
 
-            if (benchmarkQuoteRepository
-                    .findByBenchmarkAndDate(
-                            BenchmarkType.CDI,
-                            date
-                    )
-                    .isEmpty()) {
+            if (!date.isBefore(startDate) && !date.isAfter(endDate)) {
 
-                benchmarkQuoteRepository.save(
+                additions.add(
                         new BenchmarkQuote(
                                 BenchmarkType.CDI,
                                 date,
@@ -136,5 +66,6 @@ public class CdiBenchmarkService {
                 );
             }
         }
+        return additions;
     }
 }

@@ -16,6 +16,16 @@ public interface TransactionRepository
             "asset",
             "broker"
     })
+    List<Transaction> findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(
+            Long portfolioId,
+            Long assetId
+    );
+
+    @EntityGraph(attributePaths = {
+            "portfolio",
+            "asset",
+            "broker"
+    })
     List<Transaction> findByPortfolioIdOrderByTransactionDateAscIdAsc(
             Long portfolioId
     );

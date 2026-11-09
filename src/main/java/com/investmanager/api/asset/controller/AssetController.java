@@ -50,7 +50,8 @@ public class AssetController {
     public AssetResponse create(
             @Valid @RequestBody CreateAssetRequest request) {
 
-        return assetService.create(request);
+        throw new com.investmanager.api.asset.discovery.InstrumentException(405, "AUTOMATIC_REGISTRATION_REQUIRED",
+                "O cadastro de ativos é realizado automaticamente ao confirmar uma compra elegível.");
     }
 
     @Operation(

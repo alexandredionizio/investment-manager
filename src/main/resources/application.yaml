@@ -19,6 +19,37 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_TIMEOUT:1s}
+
+investment:
+  integrations:
+    request-budget-ms: ${INTEGRATION_REQUEST_BUDGET_MS:45000}
+    quote-ttl-seconds: ${QUOTE_TTL_SECONDS:300}
+    history-ttl-seconds: ${HISTORY_TTL_SECONDS:900}
+    brapi:
+      connect-timeout-ms: ${BRAPI_CONNECT_TIMEOUT_MS:2000}
+      read-timeout-ms: ${BRAPI_READ_TIMEOUT_MS:4000}
+      operation-timeout-ms: ${BRAPI_OPERATION_TIMEOUT_MS:15000}
+      max-attempts: ${BRAPI_MAX_ATTEMPTS:3}
+      initial-backoff-ms: ${BRAPI_INITIAL_BACKOFF_MS:250}
+      max-backoff-ms: ${BRAPI_MAX_BACKOFF_MS:2000}
+      max-concurrent: ${BRAPI_MAX_CONCURRENT:1}
+    bcb:
+      connect-timeout-ms: ${BCB_CONNECT_TIMEOUT_MS:2000}
+      read-timeout-ms: ${BCB_READ_TIMEOUT_MS:4000}
+      operation-timeout-ms: ${BCB_OPERATION_TIMEOUT_MS:15000}
+      max-attempts: ${BCB_MAX_ATTEMPTS:3}
+      initial-backoff-ms: ${BCB_INITIAL_BACKOFF_MS:250}
+      max-backoff-ms: ${BCB_MAX_BACKOFF_MS:2000}
+      max-concurrent: ${BCB_MAX_CONCURRENT:2}
+  transactions:
+    concurrency:
+      # PostgreSQL lock_timeout limita cada espera de lock, inclusive no INSERT do primeiro uso.
+      lock-timeout-ms: ${TRANSACTION_LOCK_TIMEOUT_MS:2000}
+      max-attempts: ${TRANSACTION_LOCK_MAX_ATTEMPTS:3}
+      initial-backoff-ms: ${TRANSACTION_LOCK_INITIAL_BACKOFF_MS:100}
+      max-backoff-ms: ${TRANSACTION_LOCK_MAX_BACKOFF_MS:500}
 
 brapi:
   token: ${BRAPI_TOKEN}

@@ -2,6 +2,7 @@ package com.investmanager.api.shared.config;
 
 import com.investmanager.api.auth.security.JwtAuthenticationEntryPoint;
 import com.investmanager.api.auth.security.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -46,6 +47,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
 
                 .authorizeHttpRequests(auth -> auth
+                        // Preserve the original HTTP status when the container renders an error.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/users",

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -78,12 +79,13 @@ class PortfolioReturnServiceTest {
                 dateRangeResolver,
                 positionCalculator,
                 quoteResolver,
-                historicalValueCalculator
+                historicalValueCalculator,
+                new com.investmanager.api.income.service.IncomePaymentPolicy(java.time.Clock.fixed(java.time.Instant.parse("2026-10-31T15:00:00Z"), java.time.ZoneId.of("America/Sao_Paulo")))
         );
     }
 
     @Test
-    void shouldNeutralizePurchaseWithoutMarketReturn() {
+    void shouldNotReportReturnFromOnlyInitialPurchase() {
         Long portfolioId = 1L;
         Long userId = 10L;
         LocalDate date = LocalDate.of(2026, 9, 21);
@@ -132,25 +134,8 @@ class PortfolioReturnServiceTest {
                         null
                 );
 
-        assertBigDecimalEquals(
-                "0.0000000000",
-                response.totalReturn()
-        );
-
-        assertEquals(
-                1,
-                response.points().size()
-        );
-
-        assertBigDecimalEquals(
-                "0.0000000000",
-                response.points().getFirst().dailyReturn()
-        );
-
-        assertBigDecimalEquals(
-                "0.0000000000",
-                response.points().getFirst().cumulativeReturn()
-        );
+        assertNull(response.totalReturn());
+        assertEquals(List.of(), response.points());
     }
 
     @Test
@@ -780,7 +765,7 @@ class PortfolioReturnServiceTest {
     }
 
     @Test
-    void shouldUseZeroReturnOnPortfolioFirstDay() {
+    void shouldNotReportBaselineAsCalculatedFirstDayReturn() {
         Long portfolioId = 1L;
         Long userId = 10L;
         LocalDate firstDate = LocalDate.of(2026, 9, 14);
@@ -829,20 +814,8 @@ class PortfolioReturnServiceTest {
                         null
                 );
 
-        assertBigDecimalEquals(
-                "0.0000000000",
-                response.totalReturn()
-        );
-
-        assertBigDecimalEquals(
-                "0.0000000000",
-                response.points().getFirst().dailyReturn()
-        );
-
-        assertBigDecimalEquals(
-                "0.0000000000",
-                response.points().getFirst().cumulativeReturn()
-        );
+        assertNull(response.totalReturn());
+        assertEquals(List.of(), response.points());
     }
 
     @Test
@@ -914,7 +887,7 @@ class PortfolioReturnServiceTest {
                 endDate,
                 PortfolioHistoryGranularity.DAILY
         )).thenReturn(
-                List.of(firstTransactionDate)
+                List.of(firstTransactionDate, firstTransactionDate.plusDays(1))
         );
 
         when(historicalQuoteService.getHistoricalQuotes(
@@ -943,6 +916,10 @@ class PortfolioReturnServiceTest {
                 anyMap()
         )).thenReturn(new BigDecimal("1000.00"));
 
+        when(historicalValueCalculator.calculate(
+                eq(firstTransactionDate.plusDays(1)), anyMap(), anyMap()
+        )).thenReturn(new BigDecimal("1000.00"));
+
         PortfolioReturnResponse response =
                 service.getReturns(
                         portfolioId,
@@ -964,7 +941,7 @@ class PortfolioReturnServiceTest {
         );
 
         assertEquals(
-                1,
+                2,
                 response.points().size()
         );
 

@@ -32,10 +32,16 @@ class HistoricalQuoteServiceTest {
     @Mock
     private BrapiClient brapiClient;
 
+    @Mock
+    private AssetQuoteSupport quoteSupport;
+
     private HistoricalQuoteService historicalQuoteService;
 
     @BeforeEach
     void setUp() {
+
+        org.mockito.Mockito.lenient().when(quoteSupport.requireSupported(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         BrapiHistoricalQuoteMapper historicalQuoteMapper =
                 new BrapiHistoricalQuoteMapper();
@@ -47,7 +53,7 @@ class HistoricalQuoteServiceTest {
                 new HistoricalQuoteService(
                         brapiClient,
                         historicalQuoteMapper,
-                        historicalRangeMapper
+                        historicalRangeMapper, quoteSupport
                 );
     }
 
@@ -268,4 +274,25 @@ class HistoricalQuoteServiceTest {
                 0L
         );
     }
+
+    @Test
+    void shouldRejectMalformedProviderResponseInsteadOfReportingMissingQuote() {
+        when(brapiClient.getHistoricalQuotes("ITUB4", "1mo", "1d"))
+                .thenReturn(null, new BrapiHistoricalResponse(null, null, 0L),
+                        new BrapiHistoricalResponse(List.of(new BrapiHistoricalResult("ITUB4", "ITUB4", false, null)), null, 0L));
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThrows(IllegalStateException.class, () -> historicalQuoteService.getHistoricalQuotes(
+                    "ITUB4", PortfolioHistoryPeriod.ONE_MONTH, PortfolioHistoryGranularity.DAILY));
+        }
+    }
+
+    @Test
+    void shouldReportLegitimatelyEmptyHistoricalPricesAsUnavailable() {
+        when(brapiClient.getHistoricalQuotes("ITUB4", "1mo", "1d")).thenReturn(
+                new BrapiHistoricalResponse(List.of(new BrapiHistoricalResult("ITUB4", "ITUB4", false,
+                        new BrapiHistoricalData("1d", "1mo", List.of()))), null, 0L));
+        assertThrows(QuoteNotFoundException.class, () -> historicalQuoteService.getHistoricalQuotes(
+                "ITUB4", PortfolioHistoryPeriod.ONE_MONTH, PortfolioHistoryGranularity.DAILY));
+    }
+
 }

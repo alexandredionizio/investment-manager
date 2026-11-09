@@ -7,6 +7,9 @@ import com.investmanager.api.income.Income;
 import com.investmanager.api.income.dto.IncomeRequest;
 import com.investmanager.api.income.dto.IncomeResponse;
 import com.investmanager.api.income.exception.IncomeNotFoundException;
+import com.investmanager.api.income.exception.InvalidIncomeDatesException;
+import com.investmanager.api.transaction.concurrency.PortfolioAssetLockManager;
+import com.investmanager.api.transaction.concurrency.TransactionCreationExecutor;
 import com.investmanager.api.income.exception.NoPositionOnBaseDateException;
 import com.investmanager.api.income.mapper.IncomeMapper;
 import com.investmanager.api.income.repository.IncomeRepository;
@@ -20,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.time.LocalDate;
 
 @Service
 public class IncomeService {
@@ -29,24 +33,41 @@ public class IncomeService {
     private final AssetRepository assetRepository;
     private final IncomeMapper incomeMapper;
     private final PositionService positionService;
+    private final PortfolioAssetLockManager lockManager;
+    private final TransactionCreationExecutor creationExecutor;
+    private final IncomePaymentPolicy paymentPolicy;
 
     public IncomeService(
             IncomeRepository incomeRepository,
             PortfolioRepository portfolioRepository,
             AssetRepository assetRepository,
             IncomeMapper incomeMapper,
-            PositionService positionService) {
+            PositionService positionService,
+            PortfolioAssetLockManager lockManager,
+            TransactionCreationExecutor creationExecutor,
+            IncomePaymentPolicy paymentPolicy) {
 
         this.incomeRepository = incomeRepository;
         this.portfolioRepository = portfolioRepository;
         this.assetRepository = assetRepository;
         this.incomeMapper = incomeMapper;
         this.positionService = positionService;
+        this.lockManager = lockManager;
+        this.creationExecutor = creationExecutor;
+        this.paymentPolicy = paymentPolicy;
     }
 
     public IncomeResponse create(
             IncomeRequest request,
             Long userId) {
+
+        return creationExecutor.execute(() -> createInTransaction(request, userId));
+    }
+
+    private IncomeResponse createInTransaction(IncomeRequest request, Long userId) {
+        if (request.paymentDate().isBefore(request.baseDate())) {
+            throw new InvalidIncomeDatesException();
+        }
 
         Portfolio portfolio = portfolioRepository
                 .findByIdAndUserId(
@@ -64,6 +85,8 @@ public class IncomeService {
                         new AssetNotFoundException(
                                 request.assetId()
                         ));
+
+        lockManager.acquire(request.portfolioId(), request.assetId());
 
         PositionResponse position =
                 positionService.calculatePositionByAssetAndDate(
@@ -98,7 +121,7 @@ public class IncomeService {
         Income savedIncome =
                 incomeRepository.save(income);
 
-        return incomeMapper.toResponse(savedIncome);
+        return incomeMapper.toResponse(savedIncome, paymentPolicy.today());
     }
 
     @Transactional(readOnly = true)
@@ -111,16 +134,17 @@ public class IncomeService {
                 .orElseThrow(() ->
                         new IncomeNotFoundException(id));
 
-        return incomeMapper.toResponse(income);
+        return incomeMapper.toResponse(income, paymentPolicy.today());
     }
 
     @Transactional(readOnly = true)
     public List<IncomeResponse> findAll(Long userId) {
+        LocalDate today = paymentPolicy.today();
 
         return incomeRepository
                 .findAllByPortfolioUserId(userId)
                 .stream()
-                .map(incomeMapper::toResponse)
+                .map(income -> incomeMapper.toResponse(income, today))
                 .toList();
     }
 
@@ -134,13 +158,14 @@ public class IncomeService {
                 .orElseThrow(() ->
                         new PortfolioNotFoundException(portfolioId));
 
+        LocalDate today = paymentPolicy.today();
         return incomeRepository
                 .findByPortfolioIdAndPortfolioUserIdOrderByPaymentDateAscIdAsc(
                         portfolioId,
                         userId
                 )
                 .stream()
-                .map(incomeMapper::toResponse)
+                .map(income -> incomeMapper.toResponse(income, today))
                 .toList();
     }
 }

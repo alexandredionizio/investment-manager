@@ -24,10 +24,16 @@ import java.util.List;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final com.investmanager.api.transaction.service.TransactionOperationsService operations;
+    private final com.investmanager.api.transaction.service.SaleOptionsService saleOptions;
 
     public TransactionController(
-            TransactionService transactionService) {
+            TransactionService transactionService,
+            com.investmanager.api.transaction.service.TransactionOperationsService operations,
+            com.investmanager.api.transaction.service.SaleOptionsService saleOptions) {
         this.transactionService = transactionService;
+        this.operations = operations;
+        this.saleOptions = saleOptions;
     }
 
     @Operation(
@@ -52,6 +58,19 @@ public class TransactionController {
                     description = "Portfolio, asset or broker not found"
             )
     })
+    @PostMapping("/purchases")
+    public ResponseEntity<TransactionResponse> purchase(@Valid @RequestBody com.investmanager.api.transaction.dto.PurchaseRequest request,
+            Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(operations.purchase(request, Long.valueOf(authentication.getName())));
+    }
+
+    @GetMapping("/portfolio/{portfolioId}/sale-options")
+    public java.util.List<com.investmanager.api.transaction.service.SaleOptionsService.Option> saleOptions(
+            @PathVariable Long portfolioId, @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date,
+            Authentication authentication) {
+        return saleOptions.find(portfolioId, Long.valueOf(authentication.getName()), date);
+    }
+
     @PostMapping
     public ResponseEntity<TransactionResponse> create(
             @Valid @RequestBody TransactionRequest request,
@@ -61,7 +80,7 @@ public class TransactionController {
                 Long.valueOf(authentication.getName());
 
         TransactionResponse response =
-                transactionService.create(request, userId);
+                operations.create(request, userId);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

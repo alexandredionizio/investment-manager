@@ -11,6 +11,12 @@ import java.util.Optional;
 public interface BenchmarkQuoteRepository
         extends JpaRepository<BenchmarkQuote, Long> {
 
+    Optional<BenchmarkQuote> findTopByBenchmarkAndDateLessThanEqualOrderByDateDesc(
+            BenchmarkType benchmark, LocalDate date);
+
+    Optional<BenchmarkQuote> findTopByBenchmarkAndDateGreaterThanEqualOrderByDateAsc(
+            BenchmarkType benchmark, LocalDate date);
+
     List<BenchmarkQuote> findByBenchmarkAndDateBetweenOrderByDateAsc(
             BenchmarkType benchmark,
             LocalDate startDate,

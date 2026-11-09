@@ -47,6 +47,50 @@ class TransactionRepositoryIntegrationTest {
     private UserRepository userRepository;
 
     @Test
+    void shouldFilterByPortfolioAndAssetAndOrderByDateThenId() {
+        User user = userRepository.save(new User("Usuario Teste", "historico@email.com", "senha123"));
+        Portfolio portfolio = portfolioRepository.save(new Portfolio("Carteira A", "Histórico", user));
+        Portfolio otherPortfolio = portfolioRepository.save(new Portfolio("Carteira B", "Isolamento", user));
+        Asset asset = saveAsset("ITUB4");
+        Asset otherAsset = saveAsset("VALE3");
+
+        Transaction latest = saveTransaction(portfolio, asset, TransactionType.BUY, 20);
+        Transaction sameDayFirst = saveTransaction(portfolio, asset, TransactionType.SELL, 10);
+        Transaction earliest = saveTransaction(portfolio, asset, TransactionType.BUY, 1);
+        Transaction sameDaySecond = saveTransaction(portfolio, asset, TransactionType.BUY, 10);
+        Transaction differentAsset = saveTransaction(portfolio, otherAsset, TransactionType.BUY, 1);
+        Transaction differentPortfolio = saveTransaction(otherPortfolio, asset, TransactionType.BUY, 1);
+
+        List<Transaction> history = transactionRepository
+                .findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(portfolio.getId(), asset.getId());
+
+        assertEquals(List.of(earliest.getId(), sameDayFirst.getId(), sameDaySecond.getId(), latest.getId()),
+                history.stream().map(Transaction::getId).toList());
+        assertEquals(List.of(differentAsset.getId()), transactionRepository
+                .findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(portfolio.getId(), otherAsset.getId())
+                .stream().map(Transaction::getId).toList());
+        assertEquals(List.of(differentPortfolio.getId()), transactionRepository
+                .findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(otherPortfolio.getId(), asset.getId())
+                .stream().map(Transaction::getId).toList());
+        assertTrue(transactionRepository
+                .findByPortfolioIdAndAssetIdOrderByTransactionDateAscIdAsc(otherPortfolio.getId(), otherAsset.getId())
+                .isEmpty());
+    }
+
+    private Asset saveAsset(String ticker) {
+        Asset asset = new Asset();
+        asset.setTicker(ticker);
+        asset.setName(ticker);
+        asset.setType(AssetType.STOCK);
+        return assetRepository.saveAndFlush(asset);
+    }
+
+    private Transaction saveTransaction(Portfolio portfolio, Asset asset, TransactionType type, int day) {
+        return transactionRepository.saveAndFlush(new Transaction(portfolio, asset, type,
+                new BigDecimal("100"), BigDecimal.ONE, LocalDate.of(2026, 9, day)));
+    }
+
+    @Test
     void shouldSaveAndFindTransaction() {
 
         User user = userRepository.save(

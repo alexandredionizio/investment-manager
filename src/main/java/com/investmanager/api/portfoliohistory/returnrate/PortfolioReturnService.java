@@ -2,6 +2,7 @@ package com.investmanager.api.portfoliohistory.returnrate;
 
 import com.investmanager.api.asset.Asset;
 import com.investmanager.api.income.Income;
+import com.investmanager.api.income.service.IncomePaymentPolicy;
 import com.investmanager.api.income.repository.IncomeRepository;
 import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
@@ -34,6 +35,7 @@ public class PortfolioReturnService {
     private final PortfolioRepository portfolioRepository;
     private final TransactionRepository transactionRepository;
     private final IncomeRepository incomeRepository;
+    private final IncomePaymentPolicy incomePaymentPolicy;
     private final HistoricalQuoteService historicalQuoteService;
     private final PortfolioHistoryDateGenerator dateGenerator;
     private final PortfolioHistoryDateRangeResolver dateRangeResolver;
@@ -54,11 +56,13 @@ public class PortfolioReturnService {
             PortfolioHistoryDateRangeResolver dateRangeResolver,
             HistoricalPositionCalculator positionCalculator,
             HistoricalQuoteResolver quoteResolver,
-            PortfolioHistoricalValueCalculator historicalValueCalculator) {
+            PortfolioHistoricalValueCalculator historicalValueCalculator,
+            IncomePaymentPolicy incomePaymentPolicy) {
 
         this.portfolioRepository = portfolioRepository;
         this.transactionRepository = transactionRepository;
         this.incomeRepository = incomeRepository;
+        this.incomePaymentPolicy = incomePaymentPolicy;
         this.historicalQuoteService = historicalQuoteService;
         this.dateGenerator = dateGenerator;
         this.dateRangeResolver = dateRangeResolver;
@@ -96,12 +100,15 @@ public class PortfolioReturnService {
                                 userId
                         );
 
+        LocalDate paymentCutoff = incomePaymentPolicy.today();
         List<Income> incomes =
                 incomeRepository
                         .findByPortfolioIdAndPortfolioUserIdOrderByPaymentDateAscIdAsc(
                                 portfolioId,
                                 userId
-                        );
+                        ).stream()
+                        .filter(income -> !income.getPaymentDate().isAfter(paymentCutoff))
+                        .toList();
 
         LocalDate firstTransactionDate =
                 transactions.isEmpty()
@@ -116,6 +123,12 @@ public class PortfolioReturnService {
                         customEndDate,
                         firstTransactionDate
                 );
+
+        if (firstTransactionDate == null || !firstTransactionDate.isBefore(dateRange.endDate())) {
+            return new PortfolioReturnResponse(
+                    portfolioId, dateRange.startDate(), dateRange.endDate(), null, List.of()
+            );
+        }
 
         LocalDate effectiveStartDate =
                 firstTransactionDate != null
@@ -170,6 +183,8 @@ public class PortfolioReturnService {
         List<PortfolioReturnSeriesPoint> points =
                 new ArrayList<>();
 
+        boolean hasReturnBasis = false;
+
         for (LocalDate date : returnDates) {
 
             LocalDate previousDate =
@@ -222,6 +237,11 @@ public class PortfolioReturnService {
                             movements.incomes()
                     );
 
+            if (!date.equals(firstTransactionDate)
+                    && previousMarketValue.add(movements.purchases()).signum() > 0) {
+                hasReturnBasis = true;
+            }
+
             BigDecimal dailyReturn =
                     date.equals(firstTransactionDate)
                             ? BigDecimal.ZERO
@@ -256,8 +276,8 @@ public class PortfolioReturnService {
                 portfolioId,
                 effectiveDateRange.startDate(),
                 effectiveDateRange.endDate(),
-                totalReturn,
-                points
+                hasReturnBasis ? totalReturn : null,
+                hasReturnBasis ? points : List.of()
         );
     }
 
@@ -274,6 +294,8 @@ public class PortfolioReturnService {
         return transactionsByAsset
                 .keySet()
                 .stream()
+                .filter(asset -> positionCalculator.requiresQuotes(
+                        transactionsByAsset.get(asset), dateRange.startDate(), dateRange.endDate()))
                 .collect(
                         Collectors.toMap(
                                 asset -> asset,
