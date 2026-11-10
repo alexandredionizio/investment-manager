@@ -23,9 +23,12 @@ import java.util.List;
 public class PortfolioController {
 
     private final PortfolioService portfolioService;
+    private final com.investmanager.api.portfolio.service.PortfolioDeletionService deletionService;
 
-    public PortfolioController(PortfolioService portfolioService) {
+    public PortfolioController(PortfolioService portfolioService,
+                               com.investmanager.api.portfolio.service.PortfolioDeletionService deletionService) {
         this.portfolioService = portfolioService;
+        this.deletionService = deletionService;
     }
 
     @Operation(
@@ -65,6 +68,14 @@ public class PortfolioController {
             Authentication authentication) {
         Long userId = Long.valueOf(authentication.getName());
         return portfolioService.rename(id, request, userId);
+    }
+
+    @Operation(summary = "Delete portfolio", description = "Permanently deletes an owned portfolio and all dependent records, including B3 import audit history")
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        Long userId = Long.valueOf(authentication.getName());
+        deletionService.delete(id, userId);
     }
 
     @Operation(
