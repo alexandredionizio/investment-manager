@@ -9,6 +9,8 @@ import java.util.Optional;
 
 public interface IncomeRepository extends JpaRepository<Income, Long> {
 
+    List<Income> findByPortfolioIdAndAssetIdOrderByBaseDateAscIdAsc(Long portfolioId, Long assetId);
+
     List<Income> findByPortfolioIdAndAssetIdAndBaseDateGreaterThanEqualOrderByBaseDateAscIdAsc(
             Long portfolioId, Long assetId, LocalDate baseDate);
 

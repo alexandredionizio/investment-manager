@@ -24,14 +24,17 @@ import java.util.List;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final com.investmanager.api.transaction.service.TransactionDeletionService deletionService;
     private final com.investmanager.api.transaction.service.TransactionOperationsService operations;
     private final com.investmanager.api.transaction.service.SaleOptionsService saleOptions;
 
     public TransactionController(
             TransactionService transactionService,
+            com.investmanager.api.transaction.service.TransactionDeletionService deletionService,
             com.investmanager.api.transaction.service.TransactionOperationsService operations,
             com.investmanager.api.transaction.service.SaleOptionsService saleOptions) {
         this.transactionService = transactionService;
+        this.deletionService = deletionService;
         this.operations = operations;
         this.saleOptions = saleOptions;
     }
@@ -180,4 +183,11 @@ public class TransactionController {
 
         return ResponseEntity.ok(transactions);
     }
+    @Operation(summary = "Delete a manual transaction", description = "Deletes only manual operations when later balances and recorded incomes remain valid. Imported B3 entries cannot be deleted via this endpoint.")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
+        deletionService.deleteManual(id, Long.valueOf(authentication.getName()));
+        return ResponseEntity.noContent().build();
+    }
+
 }
