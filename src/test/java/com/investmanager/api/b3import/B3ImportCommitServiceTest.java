@@ -74,6 +74,9 @@ class B3ImportCommitServiceTest {
                 .thenReturn(new B3ReconciliationResponse("test.xlsx", PORTFOLIO, rows.length, rows.length, 0, 0, reconciled));
         // JdbcTemplate query() vazio significa importação ainda não realizada.
         when(jdbc.query(anyString(), any(RowMapper.class), eq(PORTFOLIO), anyString())).thenReturn(List.of());
+        when(jdbc.queryForObject(startsWith("SELECT count(*) FROM b3_transaction_reversals"),
+                eq(Long.class), eq(PORTFOLIO), eq(1L), eq(2L), anyString(), eq(DAY),
+                any(BigDecimal.class), eq(BigDecimal.TEN))).thenReturn(0L);
     }
 
     @Test void confirmationIsMandatoryAndDoesNotAccessDatabase() {
@@ -133,6 +136,17 @@ class B3ImportCommitServiceTest {
         assertEquals(0, response.importedRows());
         assertEquals(84L, response.rows().get(0).transactionId());
         verifyNoInteractions(locks, reconciliation, transactions);
+    }
+
+    @Test void reversedTradeCannotBeSilentlyReimportedWithChangedFingerprint() {
+        given(row(2, "Compra", "3"));
+        when(jdbc.queryForObject(startsWith("SELECT count(*) FROM b3_transaction_reversals"),
+                eq(Long.class), eq(PORTFOLIO), eq(1L), eq(2L), eq("BUY"), eq(DAY),
+                eq(new BigDecimal("3")), eq(BigDecimal.TEN))).thenReturn(1L);
+        var failure = assertThrows(ResponseStatusException.class,
+                () -> service.commit(file, PORTFOLIO, USER, true));
+        assertEquals(409, failure.getStatusCode().value());
+        verify(transactions, never()).createConfirmed(any(), any(), any());
     }
 
     @Test void batchHistoryIsRestrictedToPortfolioOwner() {

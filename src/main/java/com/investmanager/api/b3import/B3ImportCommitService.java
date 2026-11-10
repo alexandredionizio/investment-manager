@@ -112,6 +112,23 @@ public class B3ImportCommitService {
             return new B3ImportCommitResponse(old.batchId(), portfolioId, "ALREADY_IMPORTED", 0, rows);
         }
 
+        // Contrato de seguranca: nao recriar silenciosamente uma operacao B3 estornada,
+        // mesmo que o arquivo tenha sido alterado e seu hash nao coincida com o lote original.
+        for (B3PreviewRow row : preview.rows()) {
+            var link = matched.get(row.excelRow());
+            long matchingReversed = jdbc.queryForObject("""
+                SELECT count(*) FROM b3_transaction_reversals v
+                JOIN transactions t ON t.id = v.transaction_id
+                WHERE t.portfolio_id = ? AND t.asset_id = ? AND t.broker_id = ?
+                  AND t.type = ? AND t.transaction_date = ?
+                  AND t.quantity = ? AND t.unit_price = ?
+                """, Long.class, portfolioId, link.assetId(), link.brokerId(),
+                    "Compra".equalsIgnoreCase(row.movementType()) ? "BUY" : "SELL",
+                    row.tradeDate(), row.quantity(), row.unitPrice());
+            if (matchingReversed > 0) throw conflict(
+                    "Linha " + row.excelRow() + " coincide com operacao B3 estornada. Exige revisao manual; nao sera reimportada.");
+        }
+
         // Nunca permitir que um ticker da B3 seja registrado sobre um cadastro de outra classe/bolsa.
         for (B3PreviewRow row : preview.rows()) {
             B3MatchResponse.Row link = matched.get(row.excelRow());
@@ -171,7 +188,7 @@ public class B3ImportCommitService {
         return new B3ImportCommitResponse(batchId, portfolioId, "IMPORTED", rows.size(), List.copyOf(rows));
     }
 
-    private static String fingerprint(B3PreviewResponse preview, Map<Integer, B3MatchResponse.Row> matched) {
+    static String fingerprint(B3PreviewResponse preview, Map<Integer, B3MatchResponse.Row> matched) {
         StringBuilder text = new StringBuilder();
         for (B3PreviewRow row : preview.rows()) {
             B3MatchResponse.Row link = matched.get(row.excelRow());

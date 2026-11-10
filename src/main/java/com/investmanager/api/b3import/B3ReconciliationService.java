@@ -5,6 +5,7 @@ import com.investmanager.api.transaction.Transaction;
 import com.investmanager.api.transaction.TransactionType;
 import com.investmanager.api.transaction.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,13 +26,15 @@ public class B3ReconciliationService {
     private final B3MatchingService matching;
     private final PortfolioRepository portfolios;
     private final TransactionRepository transactions;
+    private final JdbcTemplate jdbc;
 
     public B3ReconciliationService(B3SpreadsheetPreviewService previews, B3MatchingService matching,
-                                   PortfolioRepository portfolios, TransactionRepository transactions) {
+                                   PortfolioRepository portfolios, TransactionRepository transactions, JdbcTemplate jdbc) {
         this.previews = previews;
         this.matching = matching;
         this.portfolios = portfolios;
         this.transactions = transactions;
+        this.jdbc = jdbc;
     }
 
     @Transactional(readOnly = true)
@@ -46,6 +49,22 @@ public class B3ReconciliationService {
             throw new IllegalStateException("Prévia e correspondência divergentes. Reenvie a planilha.");
         Map<Integer, B3MatchResponse.Row> byLine = matched.rows().stream().collect(Collectors.toMap(
                 B3MatchResponse.Row::excelRow, row -> row, (a,b) -> { throw new IllegalStateException("Linha duplicada na correspondência."); }));
+        // Só o MESMO conteúdo importado confirma identidade da linha original.
+        // Negociações com campos iguais em arquivos diferentes podem ser legítimas.
+        Set<Integer> reversedSourceRows = Set.of();
+        boolean fullyMatched = preview.invalidRows() == 0 && preview.totalRows() == matched.totalRows()
+                && matched.rows().stream().allMatch(m -> "MATCHED".equals(m.assetStatus())
+                && "MATCHED".equals(m.brokerStatus()) && m.assetId() != null && m.brokerId() != null);
+        if (fullyMatched) {
+            String fingerprint = B3ImportCommitService.fingerprint(preview, byLine);
+            reversedSourceRows = new HashSet<>(jdbc.queryForList("""
+                    SELECT r.excel_row FROM b3_import_batches b
+                    JOIN b3_import_batch_rows r ON r.batch_id = b.id
+                    JOIN transactions t ON t.id = r.transaction_id
+                    WHERE b.portfolio_id = ? AND b.user_id = ? AND b.content_sha256 = ?
+                      AND t.reversed_at IS NOT NULL
+                    """, Integer.class, portfolioId, userId, fingerprint));
+        }
         List<Transaction> history = transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(portfolioId, userId);
         List<Event> events = new ArrayList<>();
         Set<Key> existingKeys = new HashSet<>();
@@ -70,6 +89,10 @@ public class B3ReconciliationService {
             if (match == null) throw new IllegalStateException("Correspondência ausente na linha " + row.excelRow());
             MutableRow result = new MutableRow(row, match);
             data.put(row.excelRow(), result);
+            if (reversedSourceRows.contains(row.excelRow())) {
+                result.block(List.of("Operação anteriormente importada e estornada. Não será importada novamente."));
+                continue; // Não simular novamente um lançamento que foi estornado.
+            }
             if (!row.valid()) {
                 result.block(row.errors());
                 continue;

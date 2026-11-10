@@ -8,6 +8,7 @@ import com.investmanager.api.transaction.TransactionType;
 import com.investmanager.api.transaction.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
@@ -23,7 +24,8 @@ class B3ReconciliationServiceTest {
     private final B3MatchingService matches = mock(B3MatchingService.class);
     private final PortfolioRepository portfolios = mock(PortfolioRepository.class);
     private final TransactionRepository transactions = mock(TransactionRepository.class);
-    private final B3ReconciliationService service = new B3ReconciliationService(previews, matches, portfolios, transactions);
+    private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    private final B3ReconciliationService service = new B3ReconciliationService(previews, matches, portfolios, transactions, jdbc);
     private final MockMultipartFile file = new MockMultipartFile("file", "test.xlsx", "application/octet-stream", new byte[]{1});
     private static final LocalDate DAY = LocalDate.of(2026, 9, 1);
     private static final long PORTFOLIO = 6L;
@@ -32,6 +34,8 @@ class B3ReconciliationServiceTest {
     @BeforeEach void owner() {
         when(portfolios.findByIdAndUserId(PORTFOLIO, USER)).thenReturn(Optional.of(mock(Portfolio.class)));
         when(transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(PORTFOLIO, USER)).thenReturn(List.of());
+        when(jdbc.queryForList(anyString(), eq(Integer.class), eq(PORTFOLIO), eq(USER), anyString()))
+                .thenReturn(List.of());
     }
     private B3PreviewRow row(int line, String type, String ticker, String qty) {
         BigDecimal q = new BigDecimal(qty);
@@ -54,6 +58,25 @@ class B3ReconciliationServiceTest {
         t.setQuantity(new BigDecimal(qty));
         t.setUnitPrice(new BigDecimal("10"));
         return t;
+    }
+
+    @Test void exactReimportShowsPreviouslyReversedRowAsBlockedWithoutSimulatingIt() {
+        given(row(2, "Compra", "PETR4", "10"), row(3, "Venda", "PETR4", "4"));
+        when(jdbc.queryForList(anyString(), eq(Integer.class), eq(PORTFOLIO), eq(USER), anyString()))
+                .thenReturn(List.of(3));
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals(1, result.blockedRows());
+        assertEquals(1, result.readyRows());
+        assertEquals("BLOCKED", result.rows().get(1).status());
+        assertTrue(result.rows().get(1).messages().stream().anyMatch(m -> m.contains("estornada")));
+        verify(transactions, never()).save(any());
+    }
+
+    @Test void differentFileWithoutOriginalFingerprintDoesNotAssumeReversalFromMatchingTradeFields() {
+        given(row(2, "Compra", "PETR4", "10"));
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals("READY", result.rows().get(0).status());
+        assertEquals(0, result.blockedRows());
     }
 
     @Test void rejectsForeignPortfolioBeforeReadingFile() {

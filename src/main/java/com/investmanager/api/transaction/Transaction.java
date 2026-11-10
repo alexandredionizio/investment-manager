@@ -9,8 +9,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
+@org.hibernate.annotations.SQLRestriction("reversed_at IS NULL")
 @Table(name = "transactions")
 public class Transaction {
+
+    @Column(name = "reversed_at")
+    private java.time.OffsetDateTime reversedAt;
+
+    public java.time.OffsetDateTime getReversedAt() { return reversedAt; }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
