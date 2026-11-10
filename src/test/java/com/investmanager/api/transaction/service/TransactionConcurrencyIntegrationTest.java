@@ -388,7 +388,7 @@ class TransactionConcurrencyIntegrationTest {
     @Test
     void shouldApplyAndValidateV11AndV12() {
         flyway.validate();
-        assertEquals("14", flyway.info().current().getVersion().getVersion());
+        assertEquals("15", flyway.info().current().getVersion().getVersion());
         assertEquals(Boolean.TRUE, jdbc.queryForObject("select success from flyway_schema_history where version = '13'", Boolean.class));
         assertEquals(Boolean.TRUE, jdbc.queryForObject(
                 "select success from flyway_schema_history where version = '11'", Boolean.class));
