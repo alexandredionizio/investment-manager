@@ -9,6 +9,8 @@ import com.investmanager.api.portfolio.exception.PortfolioNotFoundException;
 import com.investmanager.api.user.entity.User;
 import com.investmanager.api.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.investmanager.api.portfolio.dto.RenamePortfolioRequest;
 
 import java.util.List;
 
@@ -45,6 +47,14 @@ public class PortfolioService {
                 portfolioRepository.save(portfolio);
 
         return portfolioMapper.toResponse(savedPortfolio);
+    }
+
+    @Transactional
+    public PortfolioResponse rename(Long id, RenamePortfolioRequest request, Long userId) {
+        Portfolio portfolio = portfolioRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new PortfolioNotFoundException(id));
+        portfolio.setName(request.name().trim());
+        return portfolioMapper.toResponse(portfolio);
     }
 
     public PortfolioResponse findById(

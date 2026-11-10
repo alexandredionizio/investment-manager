@@ -57,6 +57,16 @@ public class PortfolioController {
         return portfolioService.create(request, userId);
     }
 
+    @Operation(summary = "Rename portfolio", description = "Updates only the name of a portfolio owned by the authenticated user")
+    @PutMapping("/{id}/name")
+    public PortfolioResponse rename(
+            @PathVariable Long id,
+            @Valid @RequestBody com.investmanager.api.portfolio.dto.RenamePortfolioRequest request,
+            Authentication authentication) {
+        Long userId = Long.valueOf(authentication.getName());
+        return portfolioService.rename(id, request, userId);
+    }
+
     @Operation(
             summary = "Find portfolio by ID",
             description = "Returns a portfolio that belongs to the authenticated user"
