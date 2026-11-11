@@ -15,7 +15,7 @@ import java.util.Locale;
 
 @Service
 public class B3SpreadsheetPreviewService {
-    public static final long MAX_BYTES = 2L * 1024 * 1024;
+    public static final long MAX_BYTES = 10L * 1024 * 1024;
     public static final int MAX_ROWS = 10_000;
 
     private static final List<String> HEADERS = List.of(
@@ -31,7 +31,7 @@ public class B3SpreadsheetPreviewService {
         String name = upload.getOriginalFilename();
         if (name == null || !name.toLowerCase(Locale.ROOT).endsWith(".xlsx"))
             throw new IllegalArgumentException("Somente arquivos .xlsx são aceitos.");
-        if (upload.getSize() > MAX_BYTES) throw new IllegalArgumentException("O arquivo excede 2 MB.");
+        if (upload.getSize() > MAX_BYTES) throw new IllegalArgumentException("O arquivo excede 10 MB.");
 
         try (var input = upload.getInputStream(); var workbook = WorkbookFactory.create(input)) {
             if (workbook.getNumberOfSheets() < 1) throw new IllegalArgumentException("Planilha sem abas.");

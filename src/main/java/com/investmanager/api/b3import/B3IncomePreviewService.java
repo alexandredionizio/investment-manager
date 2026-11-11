@@ -25,13 +25,13 @@ public class B3IncomePreviewService {
             .withResolverStyle(ResolverStyle.STRICT);
     private static final DataFormatter DISPLAY = new DataFormatter(Locale.forLanguageTag("pt-BR"));
     private static final int MAX_ROWS = 10_000;
-    private static final long MAX_BYTES = 2L * 1024 * 1024;
+    private static final long MAX_BYTES = 10L * 1024 * 1024;
 
     public B3IncomePreviewResponse preview(MultipartFile file) {
         if (file == null || file.isEmpty()) throw new IllegalArgumentException("Envie um arquivo Excel da aba Movimentação.");
         if (file.getOriginalFilename() == null || !file.getOriginalFilename().toLowerCase(Locale.ROOT).endsWith(".xlsx"))
             throw new IllegalArgumentException("Somente arquivos .xlsx são aceitos.");
-        if (file.getSize() > MAX_BYTES) throw new IllegalArgumentException("O arquivo excede 2 MB.");
+        if (file.getSize() > MAX_BYTES) throw new IllegalArgumentException("O arquivo excede 10 MB.");
         try (var in = file.getInputStream(); var book = WorkbookFactory.create(in)) {
             if (book.getNumberOfSheets() == 0) throw new IllegalArgumentException("Planilha sem abas.");
             var sheet = book.getSheetAt(0);
