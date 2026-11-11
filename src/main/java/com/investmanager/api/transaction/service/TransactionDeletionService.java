@@ -73,6 +73,7 @@ public class TransactionDeletionService {
         BigDecimal quantity = BigDecimal.ZERO;
         int operation = 0;
         for (Income income : orderedIncomes) {
+            if (income.getBaseDate() == null) continue; // Crédito B3 recebido não tem data-com.
             while (operation < remaining.size() &&
                     !remaining.get(operation).getTransactionDate().isAfter(income.getBaseDate())) {
                 quantity = apply(quantity, remaining.get(operation++));

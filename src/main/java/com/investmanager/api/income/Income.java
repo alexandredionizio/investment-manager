@@ -33,11 +33,38 @@ public class Income {
     @Column(nullable = false, precision = 19, scale = 8)
     private BigDecimal quantity;
 
-    @Column(name = "base_date", nullable = false)
+    @Column(name = "base_date")
     private LocalDate baseDate;
 
     @Column(name = "payment_date", nullable = false)
     private LocalDate paymentDate;
+
+    /** Crédito líquido exato e chave idempotente somente para importações B3. */
+    @Column(name = "imported_credit_amount", precision = 19, scale = 8)
+    private BigDecimal importedCreditAmount;
+
+    @Column(name = "b3_income_fingerprint", length = 64)
+    private String b3IncomeFingerprint;
+
+    public BigDecimal getTotalAmount() {
+        return importedCreditAmount != null ? importedCreditAmount : amountPerUnit.multiply(quantity);
+    }
+
+    public void markImportedFromB3(BigDecimal credited, String fingerprint) {
+        if (credited == null || credited.signum() <= 0 || fingerprint == null || fingerprint.length() != 64)
+            throw new IllegalArgumentException("Crédito B3 inválido");
+        this.importedCreditAmount = credited;
+        this.b3IncomeFingerprint = fingerprint;
+    }
+
+    /** Recebimento já confirmado pela B3: sem inventar data-base ou posição. */
+    public static Income fromB3Receipt(Portfolio portfolio, Asset asset, IncomeType type,
+                                      BigDecimal amountPerUnit, BigDecimal quantity,
+                                      LocalDate paymentDate, BigDecimal credited, String fingerprint) {
+        Income income = new Income(portfolio, asset, type, amountPerUnit, quantity, null, paymentDate);
+        income.markImportedFromB3(credited, fingerprint);
+        return income;
+    }
 
     public Income() {
     }

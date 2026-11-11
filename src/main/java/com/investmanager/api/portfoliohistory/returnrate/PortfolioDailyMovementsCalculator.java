@@ -42,8 +42,7 @@ public class PortfolioDailyMovementsCalculator {
                     date -> new DailyTotals()
             );
 
-            BigDecimal incomeValue = income.getAmountPerUnit()
-                    .multiply(income.getQuantity());
+            BigDecimal incomeValue = income.getTotalAmount();
 
             totals.incomes = totals.incomes.add(incomeValue);
         }

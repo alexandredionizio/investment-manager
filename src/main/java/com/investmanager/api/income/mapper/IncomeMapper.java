@@ -15,7 +15,7 @@ public interface IncomeMapper {
     @Mapping(source = "asset.ticker", target = "assetTicker")
     @Mapping(
             target = "totalAmount",
-            expression = "java(income.getAmountPerUnit().multiply(income.getQuantity()))"
+            expression = "java(income.getTotalAmount())"
     )
         /*
          * Exemplo do Mapping acima:
