@@ -13,6 +13,7 @@ import com.investmanager.api.user.entity.User;
 import com.investmanager.api.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,7 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** IM-052: real persistence, locks, FK protection and history validation, isolated by Testcontainers. */
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(properties = {
         "brapi.token=test-token",
         "jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
