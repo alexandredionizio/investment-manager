@@ -7,6 +7,7 @@ import com.investmanager.api.income.repository.IncomeRepository;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.transaction.concurrency.PortfolioAssetLockManager;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,17 +37,21 @@ public class B3IncomeCommitService {
     private final AssetRepository assets;
     private final IncomeRepository incomes;
     private final PortfolioAssetLockManager locks;
+    private final B3IncomeForecastMatcher forecasts;
+    private final JdbcTemplate jdbc;
 
     public B3IncomeCommitService(B3IncomePreviewService previewService,
             B3IncomeReconciliationService reconciliationService, PortfolioRepository portfolios,
             AssetRepository assets, IncomeRepository incomes,
-            PortfolioAssetLockManager locks) {
+            PortfolioAssetLockManager locks, B3IncomeForecastMatcher forecasts, JdbcTemplate jdbc) {
         this.previewService = previewService;
         this.reconciliationService = reconciliationService;
         this.portfolios = portfolios;
         this.assets = assets;
         this.incomes = incomes;
         this.locks = locks;
+        this.forecasts = forecasts;
+        this.jdbc = jdbc;
     }
 
     @Transactional
@@ -57,6 +62,8 @@ public class B3IncomeCommitService {
             fail("Selecione entre 1 e 1000 proventos para importar.");
         var portfolio = portfolios.findByIdAndUserId(portfolioId, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Carteira não encontrada."));
+        // Same portfolio advisory lock as expected-income import prevents concurrent cross-import races.
+        jdbc.queryForObject("select pg_advisory_xact_lock(?)", (rs, n) -> rs.getString(1), portfolioId);
         var preview = previewService.preview(file);
         var reconciliation = reconciliationService.reconcile(file, portfolioId, userId);
         Map<Integer, B3IncomePreviewRow> byLine = preview.rows().stream()
@@ -72,7 +79,8 @@ public class B3IncomeCommitService {
             var row = byLine.get(entry.excelRow());
             var match = resolved.get(entry.excelRow());
             if (row == null || match == null || match.assetId() == null
-                    || !"READY".equals(match.status()) || !row.errors().isEmpty())
+                    || !("READY".equals(match.status()) || "REVIEW_AMOUNT".equals(match.status()))
+                    || !row.errors().isEmpty())
                 fail("Linha " + entry.excelRow() + " não está liberada para confirmação.");
             if (row.paymentDate() == null || row.quantity() == null || row.creditedAmount() == null)
                 fail("Valores ausentes.");
@@ -88,13 +96,28 @@ public class B3IncomeCommitService {
                     previous.getTotalAmount().subtract(row.creditedAmount()).abs()
                             .compareTo(new BigDecimal("0.01")) <= 0);
             if (existingPayment) fail("Possível pagamento já registrado na linha " + entry.excelRow());
+            var forecast = forecasts.classify(portfolioId, asset.getId(), row.type(), row.paymentDate(),
+                    row.quantity(), row.creditedAmount(), row.institution());
+            if ("AMBIGUOUS".equals(forecast.status()))
+                fail("Previsão ambígua: revise a linha " + entry.excelRow());
+            boolean differing = "DIFFERENT_AMOUNT".equals(forecast.status());
+            if (differing != entry.confirmAmountDifference())
+                fail("A autorização de diferença de valor não corresponde à linha " + entry.excelRow());
             var key = fingerprint(portfolioId, asset.getId(), row);
             if (!seenKeys.add(key)) fail("Pagamento repetido dentro do arquivo: linha " + entry.excelRow());
             var netUnit = row.creditedAmount().divide(row.quantity(), 8, RoundingMode.HALF_UP);
             if (netUnit.signum() <= 0) fail("Valor unitário líquido não representável.");
             var income = Income.fromB3Receipt(portfolio, asset, type, netUnit, row.quantity(),
                     row.paymentDate(), row.creditedAmount(), key);
-            created.add(incomes.saveAndFlush(income).getId());
+            Long incomeId = incomes.saveAndFlush(income).getId();
+            if (forecast.expectedId() != null) {
+                int settled = jdbc.update("""
+                    update b3_expected_incomes set matched_income_id = ?, matched_at = now()
+                    where id = ? and portfolio_id = ? and matched_income_id is null
+                    """, incomeId, forecast.expectedId(), portfolioId);
+                if (settled != 1) fail("Previsão alterada durante a confirmação; lote cancelado.");
+            }
+            created.add(incomeId);
             credited = credited.add(row.creditedAmount());
         }
         return new B3IncomeCommitResponse(created.size(), credited, List.copyOf(created));

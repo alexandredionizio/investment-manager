@@ -18,7 +18,9 @@ class B3IncomeCommitServiceTest {
     private final AssetRepository assets = mock(AssetRepository.class);
     private final IncomeRepository incomes = mock(IncomeRepository.class);
     private final PortfolioAssetLockManager locks = mock(PortfolioAssetLockManager.class);
-    private final B3IncomeCommitService service = new B3IncomeCommitService(previews, reconciles, portfolios, assets, incomes, locks);
+    private final B3IncomeForecastMatcher forecasts = mock(B3IncomeForecastMatcher.class);
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
+    private final B3IncomeCommitService service = new B3IncomeCommitService(previews, reconciles, portfolios, assets, incomes, locks, forecasts, jdbc);
     private final MockMultipartFile file = new MockMultipartFile("file", "x.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1});
 
     @Test void cannotCommitWithoutConfirmation() {

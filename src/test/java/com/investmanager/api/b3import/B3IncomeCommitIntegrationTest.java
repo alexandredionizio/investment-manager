@@ -100,6 +100,53 @@ class B3IncomeCommitIntegrationTest {
                 "Lote inteiro deve sofrer rollback");
     }
 
+    @Test void settlesOnlyMatchingForecastAndKeepsExactCreditedAmount() {
+        jdbc.update("""
+                insert into b3_expected_incomes(portfolio_id,asset_id,income_type,expected_payment_date,
+                        quantity,expected_net_amount,institution,fingerprint)
+                values(?,?,'FII_INCOME',?,?,?,?,?)
+                """, portfolio, asset, LocalDate.of(2026, 10, 15), new BigDecimal("51"),
+                new BigDecimal("59.67"), "XP", "a".repeat(64));
+        var saved = service.commit(file, portfolio, user, request(2));
+        Long matched = jdbc.queryForObject("select matched_income_id from b3_expected_incomes where fingerprint = ?",
+                Long.class, "a".repeat(64));
+        assertEquals(saved.incomeIds().getFirst(), matched);
+        assertEquals(1, incomes.findByPortfolioIdOrderByPaymentDateAscIdAsc(portfolio).size());
+        assertEquals(0, incomes.findByPortfolioIdOrderByPaymentDateAscIdAsc(portfolio).getFirst()
+                .getTotalAmount().compareTo(new BigDecimal("59.67")));
+    }
+
+    @Test void rejectsAmountDifferenceWithoutSpecificAuthorizationAndRollsBack() {
+        jdbc.update("""
+                insert into b3_expected_incomes(portfolio_id,asset_id,income_type,expected_payment_date,
+                        quantity,expected_net_amount,institution,fingerprint)
+                values(?,?,'FII_INCOME',?,?,?,?,?)
+                """, portfolio, asset, LocalDate.of(2026, 10, 15), new BigDecimal("51"),
+                new BigDecimal("60.00"), "XP", "b".repeat(64));
+        assertThrows(RuntimeException.class, () -> service.commit(file, portfolio, user, request(2)));
+        assertTrue(incomes.findByPortfolioIdOrderByPaymentDateAscIdAsc(portfolio).isEmpty());
+        var authorized = new B3IncomeCommitRequest(true,
+                List.of(new B3IncomeCommitRequest.Entry(2, true)));
+        var saved = service.commit(file, portfolio, user, authorized);
+        assertEquals(1, saved.imported());
+        assertEquals(saved.incomeIds().getFirst(), jdbc.queryForObject(
+                "select matched_income_id from b3_expected_incomes where fingerprint = ?", Long.class, "b".repeat(64)));
+    }
+
+    @Test void ambiguousForecastsPreventSettlementAndRollbackCredit() {
+        for (String key : List.of("c".repeat(64), "d".repeat(64))) {
+            jdbc.update("""
+                    insert into b3_expected_incomes(portfolio_id,asset_id,income_type,expected_payment_date,
+                            quantity,expected_net_amount,institution,fingerprint)
+                    values(?,?,'FII_INCOME',?,?,?,?,?)
+                    """, portfolio, asset, LocalDate.of(2026, 10, 15), new BigDecimal("51"),
+                    new BigDecimal("59.67"), "XP", key);
+        }
+        assertThrows(RuntimeException.class, () -> service.commit(file, portfolio, user, request(2)));
+        assertTrue(incomes.findByPortfolioIdOrderByPaymentDateAscIdAsc(portfolio).isEmpty());
+        assertEquals(0, jdbc.queryForObject("select count(*) from b3_expected_incomes where matched_income_id is not null", Integer.class));
+    }
+
     @Test void rejectsAnotherUsersPortfolioWithoutReadingFile() {
         assertThrows(RuntimeException.class, () -> service.commit(file, portfolio, user + 1, request(2)));
         verifyNoInteractions(preview, reconcile);

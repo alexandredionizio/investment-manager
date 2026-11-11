@@ -43,7 +43,7 @@ public class B3ExpectedIncomeQueryController {
                    e.expected_payment_date, e.quantity, e.expected_net_amount, e.institution
             from b3_expected_incomes e
             join assets a on a.id = e.asset_id
-            where e.portfolio_id = ?
+            where e.portfolio_id = ? and e.matched_income_id is null
             order by e.expected_payment_date, e.id
             """, (rs, row) -> new ExpectedIncomeView(
                 rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getString(4),

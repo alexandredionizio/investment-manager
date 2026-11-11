@@ -24,13 +24,15 @@ public class B3IncomeReconciliationService {
     private final PortfolioRepository portfolios;
     private final AssetRepository assets;
     private final IncomeRepository incomes;
+    private final B3IncomeForecastMatcher forecasts;
 
     public B3IncomeReconciliationService(B3IncomePreviewService previews, PortfolioRepository portfolios,
-                                         AssetRepository assets, IncomeRepository incomes) {
+                                         AssetRepository assets, IncomeRepository incomes, B3IncomeForecastMatcher forecasts) {
         this.previews = previews;
         this.portfolios = portfolios;
         this.assets = assets;
         this.incomes = incomes;
+        this.forecasts = forecasts;
     }
 
     @Transactional(readOnly = true)
@@ -45,6 +47,7 @@ public class B3IncomeReconciliationService {
             Long assetId = null;
             String status;
             List<String> messages = new ArrayList<>(row.errors());
+            B3IncomeForecastMatcher.Match forecast = B3IncomeForecastMatcher.Match.none();
             if (!messages.isEmpty() || row.paymentDate() == null || row.quantity() == null || row.creditedAmount() == null) {
                 status = "BLOCKED";
             } else if (ticker == null) {
@@ -66,13 +69,30 @@ public class B3IncomeReconciliationService {
                     messages.add(suspected
                             ? "Possível duplicidade: pagamento semelhante já registrado. Exige conferência."
                             : "Crédito registrado na B3; confirme o valor recebido antes de importar.");
+                    if (!suspected) {
+                        forecast = forecasts.classify(portfolioId, assetId, row.type(), row.paymentDate(),
+                                row.quantity(), row.creditedAmount(), row.institution());
+                        switch (forecast.status()) {
+                            case "EXACT" -> messages.add("Previsão B3 correspondente identificada; será baixada após a confirmação do recebimento.");
+                            case "DIFFERENT_AMOUNT" -> {
+                                status = "REVIEW_AMOUNT";
+                                messages.add("Valor previsto diferente do crédito recebido; confira e autorize explicitamente a diferença.");
+                            }
+                            case "AMBIGUOUS" -> {
+                                status = "BLOCKED";
+                                messages.add("Previsão B3 ambígua ou instituição divergente; conciliação automática bloqueada.");
+                            }
+                            default -> { }
+                        }
+                    }
                     if (row.unitPrice() != null && row.quantity().multiply(row.unitPrice())
                             .subtract(row.creditedAmount()).abs().compareTo(new BigDecimal("0.02")) > 0)
                         messages.add("Valor creditado diferente do bruto calculado; preservar o líquido recebido.");
                 }
             }
             if ("BLOCKED".equals(status)) blocked++; else review++;
-            rows.add(new B3IncomeReconciliationResponse.Row(row.excelRow(), ticker, assetId, status, List.copyOf(messages)));
+            rows.add(new B3IncomeReconciliationResponse.Row(row.excelRow(), ticker, assetId, status,
+                    List.copyOf(messages), forecast.expectedId(), forecast.expectedAmount()));
         }
         return new B3IncomeReconciliationResponse(portfolioId, rows.size(), identified, review, blocked, List.copyOf(rows));
     }

@@ -23,7 +23,8 @@ class B3IncomeReconciliationServiceTest {
     private final PortfolioRepository portfolios = mock(PortfolioRepository.class);
     private final AssetRepository assets = mock(AssetRepository.class);
     private final IncomeRepository incomes = mock(IncomeRepository.class);
-    private final B3IncomeReconciliationService service = new B3IncomeReconciliationService(previews, portfolios, assets, incomes);
+    private final B3IncomeForecastMatcher forecasts = mock(B3IncomeForecastMatcher.class);
+    private final B3IncomeReconciliationService service = new B3IncomeReconciliationService(previews, portfolios, assets, incomes, forecasts);
     private final MockMultipartFile file = new MockMultipartFile("file", "movimentacao.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[] {1});
 
     private B3IncomePreviewRow row(String product) {
@@ -45,6 +46,8 @@ class B3IncomeReconciliationServiceTest {
         Asset asset = mock(Asset.class);
         when(asset.getId()).thenReturn(7L);
         when(assets.findByNormalizedTicker("BBDC3")).thenReturn(List.of(asset));
+        when(forecasts.classify(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(B3IncomeForecastMatcher.Match.none());
         var answer = service.reconcile(file, 10L, 99L);
         assertEquals(1, answer.identified());
         assertEquals("READY", answer.rows().get(0).status());
