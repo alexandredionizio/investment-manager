@@ -124,6 +124,21 @@ class B3ImportCommitServiceTest {
         verify(jdbc).update(startsWith("INSERT INTO b3_import_batch_rows"), eq(91L), eq(2), eq(84L));
     }
 
+    @Test void fingerprintIsIndependentOfFilenameAndDecimalScale() {
+        B3PreviewRow first = row(2, "Compra", "3.00");
+        B3PreviewRow second = row(2, "Compra", "3.0");
+        var matchedRow = new B3MatchResponse.Row(2, "PETR4", "XP", "MATCHED", 1L,
+                "MATCHED", 2L, List.of(), List.of());
+        String original = B3ImportCommitService.fingerprint(
+                new B3PreviewResponse("arquivo-original.xlsx", 1, 1, 0, List.of(first)),
+                java.util.Map.of(2, matchedRow));
+        String renamed = B3ImportCommitService.fingerprint(
+                new B3PreviewResponse("arquivo-renomeado.xlsx", 1, 1, 0, List.of(second)),
+                java.util.Map.of(2, matchedRow));
+        assertEquals(original, renamed, "Renomear arquivo ou mudar escala decimal não pode duplicar lote");
+        assertEquals(64, original.length());
+    }
+
     @Test void reimportReturnsOriginalBatchWithoutCreatingAnotherTransaction() {
         given(row(2, "Compra", "3"));
         when(jdbc.query(startsWith("SELECT id, row_count"), any(RowMapper.class),
