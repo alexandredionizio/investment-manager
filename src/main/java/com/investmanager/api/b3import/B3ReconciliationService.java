@@ -76,7 +76,7 @@ public class B3ReconciliationService {
             }
             Long id = tx.getAsset().getId();
             events.add(new Event(tx.getTransactionDate(), -1, tx.getId() == null ? 0 : tx.getId().intValue(),
-                    id, tx.getType(), tx.getQuantity(), null));
+                    id, tx.getBroker() == null ? null : tx.getBroker().getId(), tx.getType(), tx.getQuantity(), null));
             sameDayTypes.computeIfAbsent(new AssetDay(id, tx.getTransactionDate()), k -> new HashSet<>()).add(tx.getType());
             existingKeys.add(new Key(tx.getTransactionDate(), id,
                     tx.getBroker() == null ? null : tx.getBroker().getId(),
@@ -115,7 +115,7 @@ public class B3ReconciliationService {
             if (!row.warnings().isEmpty()) result.review(String.join(" ", row.warnings()));
             if (!row.tradeDate().isBefore(LocalDate.now().plusDays(1)))
                 result.review("Data futura: conferir antes de importar.");
-            events.add(new Event(row.tradeDate(), 0, row.excelRow(), match.assetId(), type, row.quantity(), result));
+            events.add(new Event(row.tradeDate(), 0, row.excelRow(), match.assetId(), match.brokerId(), type, row.quantity(), result));
         }
         for (List<Integer> lines : importedKeys.values()) {
             if (lines.size() > 1) for (Integer line : lines)
@@ -140,6 +140,8 @@ public class B3ReconciliationService {
                 .thenComparingInt(Event::sourceOrder)
                 .thenComparingInt(Event::sequence));
         Map<Long, BigDecimal> balances = new HashMap<>();
+        Map<AssetBroker, BigDecimal> brokerBalances = new HashMap<>();
+        Set<Long> assetsWithUnspecifiedBroker = new HashSet<>();
         Set<Long> historicallyInvalid = new HashSet<>();
         for (Event event : events) {
             BigDecimal before = balances.getOrDefault(event.assetId(), BigDecimal.ZERO);
@@ -152,6 +154,24 @@ public class B3ReconciliationService {
                     event.row().block(List.of("Histórico existente apresenta saldo negativo anterior; análise indisponível."));
                 if (after.signum() < 0)
                     event.row().block(List.of("Venda excede saldo cronológico simulado da carteira; verificar compras anteriores."));
+            }
+            // Saldo consolidado continua sendo a referência contábil. Custódia por corretora
+            // é apenas um indício: transferências não estão registradas neste extrato.
+            if (event.brokerId() == null) {
+                assetsWithUnspecifiedBroker.add(event.assetId());
+            } else {
+                AssetBroker custody = new AssetBroker(event.assetId(), event.brokerId());
+                BigDecimal brokerBefore = brokerBalances.getOrDefault(custody, BigDecimal.ZERO);
+                BigDecimal brokerAfter = event.type() == TransactionType.BUY
+                        ? brokerBefore.add(event.quantity()) : brokerBefore.subtract(event.quantity());
+                brokerBalances.put(custody, brokerAfter);
+                if (event.row() != null && event.type() == TransactionType.SELL && after.signum() >= 0) {
+                    if (assetsWithUnspecifiedBroker.contains(event.assetId())) {
+                        event.row().review("Histórico possui operações sem corretora; conferir custódia antes de importar a venda.");
+                    } else if (brokerAfter.signum() < 0) {
+                        event.row().review("Saldo por corretora insuficiente na simulação; verificar transferência ou custódia antes de importar.");
+                    }
+                }
             }
             balances.put(event.assetId(), after);
         }
@@ -171,11 +191,12 @@ public class B3ReconciliationService {
         return null;
     }
     private record AssetDay(Long id, LocalDate date) {}
+    private record AssetBroker(Long assetId, Long brokerId) {}
     private record Key(LocalDate date, Long assetId, Long brokerId, TransactionType type,
                        BigDecimal qty, BigDecimal price) {
         private Key { qty = qty == null ? null : qty.stripTrailingZeros(); price = price == null ? null : price.stripTrailingZeros(); }
     }
-    private record Event(LocalDate date, int sourceOrder, int sequence, Long assetId,
+    private record Event(LocalDate date, int sourceOrder, int sequence, Long assetId, Long brokerId,
                          TransactionType type, BigDecimal quantity, MutableRow row) {}
     private static final class MutableRow {
         final B3PreviewRow preview;

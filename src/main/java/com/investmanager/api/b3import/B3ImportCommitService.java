@@ -135,10 +135,20 @@ public class B3ImportCommitService {
             Asset asset = assets.findById(link.assetId())
                     .orElseThrow(() -> conflict("Ativo da linha " + row.excelRow() + " não existe mais."));
             if (!Set.of(AssetType.STOCK, AssetType.FII, AssetType.ETF).contains(asset.getType())
-                    || !row.ticker().equalsIgnoreCase(asset.getTicker())
                     || (asset.getExchange() != null && !asset.getExchange().isBlank()
                         && !"B3".equalsIgnoreCase(asset.getExchange())))
                 throw conflict("Ativo da linha " + row.excelRow() + " não está elegível como B3.");
+            if (!row.ticker().equalsIgnoreCase(asset.getTicker())) {
+                // Ticker histórico: a prévia deve continuar resolvendo uma identidade única
+                // no instante da gravação. Não aceitar colisão com ticker atual de outro ativo.
+                String ticker = row.ticker().strip().toUpperCase(Locale.ROOT);
+                Set<Long> candidates = new HashSet<>();
+                assets.findByNormalizedTicker(ticker).forEach(a -> candidates.add(a.getId()));
+                assets.findByConfirmedB3Ticker(ticker).forEach(a -> candidates.add(a.getId()));
+                if (candidates.size() != 1 || !candidates.contains(link.assetId()))
+                    throw conflict("Ativo da linha " + row.excelRow()
+                            + " possui identidade histórica não confirmada ou ambígua; revise a associação B3.");
+            }
         }
 
         // Bloqueio ordenado POR ATIVO: coordenação idêntica ao registro manual, evita deadlock entre lotes.

@@ -1,6 +1,7 @@
 package com.investmanager.api.b3import;
 
 import com.investmanager.api.asset.Asset;
+import com.investmanager.api.broker.Broker;
 import com.investmanager.api.portfolio.Portfolio;
 import com.investmanager.api.portfolio.repository.PortfolioRepository;
 import com.investmanager.api.transaction.Transaction;
@@ -98,7 +99,8 @@ class B3ReconciliationServiceTest {
         when(transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(PORTFOLIO, USER))
                 .thenReturn(List.of(compraExistente));
         var result = service.reconcile(file, PORTFOLIO, USER);
-        assertEquals(1, result.readyRows());
+        assertEquals(1, result.reviewRows()); // histórico sem corretora: saldo consolidado existe, custódia requer revisão
+        assertEquals(0, result.blockedRows());
         verify(transactions, never()).save(any());
     }
 
@@ -124,5 +126,96 @@ class B3ReconciliationServiceTest {
         var result = service.reconcile(file, PORTFOLIO, USER);
         assertEquals(1, result.blockedRows());
         assertEquals("BLOCKED", result.rows().get(0).status());
+    }
+
+    private Transaction existingWithBroker(String type, String qty, Long brokerId, LocalDate date) {
+        Transaction tx = existing(type, qty);
+        tx.setTransactionDate(date);
+        if (brokerId != null) {
+            Broker broker = mock(Broker.class);
+            when(broker.getId()).thenReturn(brokerId);
+            tx.setBroker(broker);
+        }
+        return tx;
+    }
+
+    @Test void saleWithPortfolioBalanceButInsufficientBrokerCustodyRequiresReview() {
+        given(row(2, "Venda", "PETR4", "4")); // importado pela corretora 2
+        Transaction existingTransaction = existingWithBroker("BUY", "10", 77L, DAY.minusDays(1));
+        when(transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(PORTFOLIO, USER))
+                .thenReturn(List.of(existingTransaction));
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals(1, result.reviewRows());
+        assertEquals(0, result.blockedRows());
+        assertTrue(result.rows().get(0).messages().stream().anyMatch(m -> m.contains("corretora")));
+        verify(transactions, never()).save(any());
+    }
+
+    @Test void saleCoveredBySameBrokerRemainsReady() {
+        given(row(2, "Venda", "PETR4", "4"));
+        Transaction existingTransaction = existingWithBroker("BUY", "10", 2L, DAY.minusDays(1));
+        when(transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(PORTFOLIO, USER))
+                .thenReturn(List.of(existingTransaction));
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals(1, result.readyRows());
+        assertEquals(0, result.reviewRows());
+    }
+
+    @Test void missingBrokerOnExistingHistoryCannotProveCustody() {
+        given(row(2, "Venda", "PETR4", "4"));
+        Transaction existingTransaction = existingWithBroker("BUY", "10", null, DAY.minusDays(1));
+        when(transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(PORTFOLIO, USER))
+                .thenReturn(List.of(existingTransaction));
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals(1, result.reviewRows());
+        assertTrue(result.rows().get(0).messages().stream().anyMatch(m -> m.contains("sem corretora")));
+    }
+
+
+    @Test void incompleteOlderHistoryMustNotClaimSafeBalance() {
+        // Uma venda anterior sem compra conhecida deixa o histórico incompleto.
+        // Mesmo que uma compra posterior cubra a quantidade, a prévia não pode
+        // declarar a venda importada segura como se o passado fosse conhecido.
+        given(row(2, "Venda", "PETR4", "1"));
+        Transaction oldSale = existingWithBroker("SELL", "3", 2L, DAY.minusDays(10));
+        Transaction laterBuy = existingWithBroker("BUY", "10", 2L, DAY.minusDays(2));
+        when(transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(PORTFOLIO, USER))
+                .thenReturn(List.of(oldSale, laterBuy));
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals(1, result.blockedRows());
+        assertTrue(result.rows().get(0).messages().stream().anyMatch(m -> m.contains("Histórico existente")));
+        verify(transactions, never()).save(any());
+    }
+
+    @Test void mixedDatesMustUseChronologyRatherThanSpreadsheetRowOrder() {
+        B3PreviewRow newerBuy = new B3PreviewRow(2, DAY.plusDays(2), "Compra", "Mercado à Vista",
+                "", "XP", "PETR4", new BigDecimal("10"), BigDecimal.TEN,
+                new BigDecimal("100"), List.of(), List.of());
+        B3PreviewRow earlierSale = row(3, "Venda", "PETR4", "1");
+        given(newerBuy, earlierSale);
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals("BLOCKED", result.rows().get(1).status());
+        assertEquals(1, result.blockedRows());
+        verify(transactions, never()).save(any());
+    }
+
+    @Test void repeatedReconciliationKeepsSameDiagnosticsAndDoesNotPersist() {
+        given(row(2, "Compra", "PETR4", "2"), row(3, "Compra", "PETR4", "2"));
+        var first = service.reconcile(file, PORTFOLIO, USER);
+        var second = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals(first, second);
+        assertEquals(2, second.reviewRows());
+        verify(transactions, never()).save(any());
+    }
+
+    @Test void brokerCustodyReviewDoesNotOverrideNegativeConsolidatedBalanceBlock() {
+        given(row(2, "Venda", "PETR4", "5"));
+        Transaction oldBuy = existingWithBroker("BUY", "3", 77L, DAY.minusDays(1));
+        when(transactions.findByPortfolioIdAndPortfolioUserIdOrderByTransactionDateAscIdAsc(PORTFOLIO, USER))
+                .thenReturn(List.of(oldBuy));
+        var result = service.reconcile(file, PORTFOLIO, USER);
+        assertEquals(1, result.blockedRows());
+        assertEquals("BLOCKED", result.rows().get(0).status());
+        verify(transactions, never()).save(any());
     }
 }

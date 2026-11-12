@@ -161,4 +161,50 @@ class B3ImportCommitServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.commit(file, PORTFOLIO, USER, true));
         verify(transactions, never()).createConfirmed(any(), any(), any());
     }
+    @Test void confirmedHistoricalTickerCanBeCommittedWithOriginalRecordedTicker() {
+        B3PreviewRow historic = new B3PreviewRow(2, DAY, "Compra", "Mercado à Vista", "", "XP", "PETR3",
+                new BigDecimal("3"), BigDecimal.TEN, new BigDecimal("30"), List.of(), List.of());
+        given(historic);
+        Asset confirmed = mock(Asset.class);
+        when(confirmed.getId()).thenReturn(1L);
+        when(assets.findByNormalizedTicker("PETR3")).thenReturn(List.of());
+        when(assets.findByConfirmedB3Ticker("PETR3")).thenReturn(List.of(confirmed));
+        when(jdbc.queryForObject(startsWith("INSERT INTO b3_import_batches"), eq(Long.class),
+                eq(PORTFOLIO), eq(USER), anyString(), eq("test.xlsx"), eq(1)))
+                .thenReturn(91L);
+        when(transactions.createConfirmed(any(), eq(USER), eq("PETR3")))
+                .thenReturn(new TransactionResponse(84L, PORTFOLIO, 1L, "PETR4", 2L, "XP",
+                        com.investmanager.api.transaction.TransactionType.BUY,
+                        new BigDecimal("3"), BigDecimal.TEN, DAY));
+        var response = service.commit(file, PORTFOLIO, USER, true);
+        assertEquals("IMPORTED", response.status());
+        verify(transactions).createConfirmed(any(), eq(USER), eq("PETR3"));
+    }
+
+    @Test void ambiguousHistoricalTickerCannotBeCommittedEvenIfPreviewSaysMatched() {
+        B3PreviewRow historic = new B3PreviewRow(2, DAY, "Compra", "Mercado à Vista", "", "XP", "PETR3",
+                new BigDecimal("3"), BigDecimal.TEN, new BigDecimal("30"), List.of(), List.of());
+        given(historic);
+        Asset first = mock(Asset.class);
+        Asset second = mock(Asset.class);
+        when(first.getId()).thenReturn(1L);
+        when(second.getId()).thenReturn(99L);
+        when(assets.findByConfirmedB3Ticker("PETR3")).thenReturn(List.of(first, second));
+        var exception = assertThrows(ResponseStatusException.class,
+                () -> service.commit(file, PORTFOLIO, USER, true));
+        assertEquals(409, exception.getStatusCode().value());
+        verify(transactions, never()).createConfirmed(any(), any(), any());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test void unconfirmedHistoricalTickerCannotBeCommitted() {
+        B3PreviewRow historic = new B3PreviewRow(2, DAY, "Compra", "Mercado à Vista", "", "XP", "PETR3",
+                new BigDecimal("3"), BigDecimal.TEN, new BigDecimal("30"), List.of(), List.of());
+        given(historic);
+        var exception = assertThrows(ResponseStatusException.class,
+                () -> service.commit(file, PORTFOLIO, USER, true));
+        assertEquals(409, exception.getStatusCode().value());
+        verify(transactions, never()).createConfirmed(any(), any(), any());
+    }
+
 }
