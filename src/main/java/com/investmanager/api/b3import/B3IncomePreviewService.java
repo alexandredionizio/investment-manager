@@ -44,13 +44,18 @@ public class B3IncomePreviewService {
             if (sheet.getLastRowNum() > MAX_ROWS)
                 throw new IllegalArgumentException("Máximo permitido: " + MAX_ROWS + " linhas.");
             var incomes = new ArrayList<B3IncomePreviewRow>();
-            int skipped = 0;
+            var skippedDetails = new ArrayList<B3IncomePreviewResponse.SkippedMovement>();
             for (int index = 1; index <= sheet.getLastRowNum(); index++) {
                 var row = sheet.getRow(index);
                 if (row == null || empty(row)) continue;
                 String movement = value(row.getCell(2)).trim();
                 String type = classify(movement);
-                if (type == null) { skipped++; continue; }
+                if (type == null) {
+                    skippedDetails.add(new B3IncomePreviewResponse.SkippedMovement(
+                            index + 1, movement.isBlank() ? "(não informada)" : movement,
+                            "Movimentação não reconhecida como dividendo, JCP ou rendimento; nenhum lançamento automático foi realizado."));
+                    continue;
+                }
                 var errors = new ArrayList<String>();
                 var warnings = new ArrayList<String>();
                 if (!normalize(value(row.getCell(0))).equals("credito"))
@@ -70,8 +75,8 @@ public class B3IncomePreviewService {
                 incomes.add(new B3IncomePreviewRow(index + 1, date, movement, product, institution,
                         type, quantity, unit, credited, List.copyOf(errors), List.copyOf(warnings)));
             }
-            return new B3IncomePreviewResponse(file.getOriginalFilename(), incomes.size() + skipped,
-                    incomes.size(), skipped, List.copyOf(incomes));
+            return new B3IncomePreviewResponse(file.getOriginalFilename(), incomes.size() + skippedDetails.size(),
+                    incomes.size(), skippedDetails.size(), List.copyOf(incomes), List.copyOf(skippedDetails));
         } catch (IllegalArgumentException exception) {
             throw exception;
         } catch (IOException | RuntimeException exception) {

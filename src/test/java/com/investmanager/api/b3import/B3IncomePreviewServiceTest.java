@@ -57,7 +57,14 @@ class B3IncomePreviewServiceTest {
 
     @Test
     void ignoresUnrelatedMovementAndFlagsInvalidDate() throws Exception {
-        assertEquals(1, service.preview(excel("Transferência", "Credito", "10/11/2026", "R$ 50,00")).skippedRows());
+        var skipped = service.preview(excel("Transferência", "Credito", "10/11/2026", "R$ 50,00"));
+        assertEquals(1, skipped.skippedRows());
+        assertEquals(0, skipped.incomeRows());
+        assertTrue(skipped.rows().isEmpty());
+        assertEquals(1, skipped.skippedDetails().size());
+        assertEquals(2, skipped.skippedDetails().get(0).lineNumber());
+        assertEquals("Transferência", skipped.skippedDetails().get(0).movement());
+        assertTrue(skipped.skippedDetails().get(0).reason().contains("nenhum lançamento automático"));
         var invalid = service.preview(excel("Rendimento", "Debito", "31/02/2026", "R$ 50,00"));
         assertEquals("FII_INCOME", invalid.rows().get(0).type());
         assertEquals(2, invalid.rows().get(0).errors().size());
@@ -67,5 +74,21 @@ class B3IncomePreviewServiceTest {
     void rejectsUnexpectedSheetInsteadOfGuessingColumns() throws Exception {
         var invalid = new MockMultipartFile("file", "dados.txt", "text/plain", "a".getBytes());
         assertThrows(IllegalArgumentException.class, () -> service.preview(invalid));
+    }
+    @Test
+    void tracksUnrecognizedCorporateEventsWithoutTreatingThemAsIncome() throws Exception {
+        var result = service.preview(excel("Direito de Subscrição", "Credito", "10/11/2026", "R$ 50,00"));
+        assertEquals(1, result.totalRows());
+        assertEquals(0, result.incomeRows());
+        assertEquals(1, result.skippedRows());
+        assertEquals(2, result.skippedDetails().get(0).lineNumber());
+        assertEquals("Direito de Subscrição", result.skippedDetails().get(0).movement());
+        assertTrue(result.rows().isEmpty());
+    }
+
+    @Test
+    void keepsLegacyPreviewResponseConstructorCompatible() {
+        var response = new B3IncomePreviewResponse("arquivo.xlsx", 0, 0, 0, java.util.List.of());
+        assertTrue(response.skippedDetails().isEmpty());
     }
 }
