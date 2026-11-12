@@ -97,4 +97,117 @@ class B3MatchingServiceTest {
         assertEquals(1, result.invalidRows());
         verifyNoInteractions(assets);
     }
+
+    @Test
+    void ambiguousTickerMustRequireReviewWithoutAssigningAsset() {
+        preview(row(2, "PETR4", "XP", List.of()));
+        Asset first = mock(Asset.class);
+        Asset second = mock(Asset.class);
+        when(first.getId()).thenReturn(101L);
+        when(second.getId()).thenReturn(102L);
+        when(assets.findByNormalizedTicker("PETR4")).thenReturn(List.of(first, second));
+        when(brokers.findAll()).thenReturn(List.of());
+
+        B3MatchResponse result = service.match(file());
+        assertEquals(0, result.matchedRows());
+        assertEquals(1, result.reviewRows());
+        assertEquals("AMBIGUOUS", result.rows().get(0).assetStatus());
+        assertNull(result.rows().get(0).assetId());
+        verify(assets, never()).save(any());
+    }
+
+    @Test
+    void ambiguousExactBrokerNamesMustNotBeResolvedByConfirmedAlias() {
+        preview(row(2, "PETR4", "ITAU", List.of()));
+        Asset asset = mock(Asset.class);
+        when(asset.getId()).thenReturn(11L);
+        when(assets.findByNormalizedTicker("PETR4")).thenReturn(List.of(asset));
+        Broker first = mock(Broker.class);
+        Broker second = mock(Broker.class);
+        when(first.getName()).thenReturn("Itaú");
+        when(second.getName()).thenReturn("ITAU");
+        when(brokers.findAll()).thenReturn(List.of(first, second));
+
+        B3MatchResponse result = service.match(file());
+        assertEquals("AMBIGUOUS", result.rows().get(0).brokerStatus());
+        assertNull(result.rows().get(0).brokerId());
+        assertEquals(1, result.reviewRows());
+        verifyNoInteractions(aliases);
+        verify(brokers, never()).save(any());
+    }
+
+    @Test
+    void staleBrokerAliasMustNotMatchMissingBroker() {
+        preview(row(2, "PETR4", "XP", List.of()));
+        when(brokers.findAll()).thenReturn(List.of());
+        when(aliases.lookup("XP")).thenReturn(java.util.Optional.of(999L));
+        when(assets.findByNormalizedTicker("PETR4")).thenReturn(List.of());
+
+        B3MatchResponse result = service.match(file());
+        assertEquals("NOT_FOUND", result.rows().get(0).brokerStatus());
+        assertNull(result.rows().get(0).brokerId());
+        assertEquals(1, result.reviewRows());
+        verify(brokers, never()).save(any());
+    }
+    @Test
+    void confirmedHistoricalB3TickerMatchesSameAssetWithoutCreatingIt() {
+        preview(row(2, "ANTG3", "XP", List.of()));
+        Asset historical = mock(Asset.class);
+        when(historical.getId()).thenReturn(45L);
+        when(assets.findByNormalizedTicker("ANTG3")).thenReturn(List.of());
+        when(assets.findByConfirmedB3Ticker("ANTG3")).thenReturn(List.of(historical));
+        when(brokers.findAll()).thenReturn(List.of());
+
+        B3MatchResponse result = service.match(file());
+        assertEquals("MATCHED", result.rows().get(0).assetStatus());
+        assertEquals(45L, result.rows().get(0).assetId());
+        assertEquals(1, result.reviewRows()); // Corretora ainda precisa de revisão
+        verify(assets, never()).save(any());
+    }
+
+    @Test
+    void sameAssetFoundByCurrentAndHistoricalTickerIsNotAmbiguous() {
+        preview(row(2, "PETR4", "XP", List.of()));
+        Asset same = mock(Asset.class);
+        when(same.getId()).thenReturn(45L);
+        when(assets.findByNormalizedTicker("PETR4")).thenReturn(List.of(same));
+        when(assets.findByConfirmedB3Ticker("PETR4")).thenReturn(List.of(same));
+        when(brokers.findAll()).thenReturn(List.of());
+
+        B3MatchResponse result = service.match(file());
+        assertEquals("MATCHED", result.rows().get(0).assetStatus());
+        assertEquals(45L, result.rows().get(0).assetId());
+    }
+
+    @Test
+    void tickerCollisionBetweenCurrentAssetAndConfirmedHistoricalIdentityRequiresReview() {
+        preview(row(2, "PETR4", "XP", List.of()));
+        Asset current = mock(Asset.class);
+        Asset historical = mock(Asset.class);
+        when(current.getId()).thenReturn(45L);
+        when(historical.getId()).thenReturn(46L);
+        when(assets.findByNormalizedTicker("PETR4")).thenReturn(List.of(current));
+        when(assets.findByConfirmedB3Ticker("PETR4")).thenReturn(List.of(historical));
+        when(brokers.findAll()).thenReturn(List.of());
+
+        B3MatchResponse result = service.match(file());
+        assertEquals("AMBIGUOUS", result.rows().get(0).assetStatus());
+        assertNull(result.rows().get(0).assetId());
+        assertEquals(1, result.reviewRows());
+        verify(assets, never()).save(any());
+    }
+
+    @Test
+    void unmatchedTickerRemainsUnmatchedWithoutInventingIdentity() {
+        preview(row(2, "DESCONHECIDO", "XP", List.of()));
+        when(assets.findByNormalizedTicker("DESCONHECIDO")).thenReturn(List.of());
+        when(assets.findByConfirmedB3Ticker("DESCONHECIDO")).thenReturn(List.of());
+        when(brokers.findAll()).thenReturn(List.of());
+
+        B3MatchResponse result = service.match(file());
+        assertEquals("NOT_FOUND", result.rows().get(0).assetStatus());
+        assertNull(result.rows().get(0).assetId());
+        verify(assets, never()).save(any());
+    }
+
 }

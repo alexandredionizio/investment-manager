@@ -10,6 +10,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -54,11 +56,20 @@ public class B3MatchingService {
             }
 
             String ticker = normalize(row.ticker());
-            List<Asset> assets = ticker.isEmpty() ? List.of() :
-                    assetRepository.findByNormalizedTicker(ticker);
-            String assetStatus = assets.isEmpty() ? "NOT_FOUND" :
-                    assets.size() == 1 ? "MATCHED" : "AMBIGUOUS";
-            Long assetId = assets.size() == 1 ? assets.get(0).getId() : null;
+            // A planilha de negociações não contém ISIN nem classe. Cruzamos somente
+            // tickers e aliases B3 previamente confirmados; qualquer colisão exige revisão.
+            Map<Long, Asset> candidates = new LinkedHashMap<>();
+            if (!ticker.isEmpty()) {
+                for (Asset asset : assetRepository.findByNormalizedTicker(ticker)) {
+                    candidates.put(asset.getId(), asset);
+                }
+                for (Asset asset : assetRepository.findByConfirmedB3Ticker(ticker)) {
+                    candidates.put(asset.getId(), asset);
+                }
+            }
+            String assetStatus = candidates.isEmpty() ? "NOT_FOUND" :
+                    candidates.size() == 1 ? "MATCHED" : "AMBIGUOUS";
+            Long assetId = candidates.size() == 1 ? candidates.keySet().iterator().next() : null;
 
             String institution = normalize(row.institution());
             List<Broker> exact = brokers.stream()
