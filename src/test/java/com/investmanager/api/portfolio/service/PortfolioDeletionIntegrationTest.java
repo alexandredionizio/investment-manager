@@ -108,8 +108,23 @@ class PortfolioDeletionIntegrationTest {
         Fixture target = fixture(true);
         Fixture other = fixture(true);
 
+        Long rejectedTarget = jdbc.queryForObject("""
+                INSERT INTO b3_import_rejected_attempts (portfolio_id, user_id, source_filename, reason)
+                VALUES (?, ?, 'rejeitado.xlsx', 'Corretora sem correspondência') RETURNING id
+                """, Long.class, target.portfolioId(), target.userId());
+        Long rejectedOther = jdbc.queryForObject("""
+                INSERT INTO b3_import_rejected_attempts (portfolio_id, user_id, source_filename, reason)
+                VALUES (?, ?, 'outro.xlsx', 'Linha inválida') RETURNING id
+                """, Long.class, other.portfolioId(), other.userId());
+        jdbc.update("INSERT INTO b3_import_rejected_rows (attempt_id, excel_row, reason) VALUES (?, 2, 'Ativo ambíguo')", rejectedTarget);
+        jdbc.update("INSERT INTO b3_import_rejected_rows (attempt_id, excel_row, reason) VALUES (?, 3, 'Valor ausente')", rejectedOther);
+
         deletion.delete(target.portfolioId(), target.userId());
 
+        assertEquals(0, count("b3_import_rejected_attempts", "id", rejectedTarget));
+        assertEquals(0, count("b3_import_rejected_rows", "attempt_id", rejectedTarget));
+        assertEquals(1, count("b3_import_rejected_attempts", "id", rejectedOther));
+        assertEquals(1, count("b3_import_rejected_rows", "attempt_id", rejectedOther));
         assertEquals(0, count("portfolios", "id", target.portfolioId()));
         assertEquals(0, count("transactions", "id", target.transactionId()));
         assertEquals(0, count("incomes", "portfolio_id", target.portfolioId()));

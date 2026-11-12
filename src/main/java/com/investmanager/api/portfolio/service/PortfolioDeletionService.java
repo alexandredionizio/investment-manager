@@ -40,6 +40,9 @@ public class PortfolioDeletionService {
                 WHERE batch_id IN (SELECT id FROM b3_import_batches WHERE portfolio_id = ?)
                 """, portfolioId);
         jdbc.update("DELETE FROM b3_import_batches WHERE portfolio_id = ?", portfolioId);
+        // V22: as tentativas rejeitadas não são lotes confirmados, mas também
+        // referenciam a carteira. Suas linhas são removidas por ON DELETE CASCADE.
+        jdbc.update("DELETE FROM b3_import_rejected_attempts WHERE portfolio_id = ?", portfolioId);
         jdbc.update("DELETE FROM valuation_contracts WHERE portfolio_id = ?", portfolioId);
         jdbc.update("DELETE FROM portfolio_asset_locks WHERE portfolio_id = ?", portfolioId);
         jdbc.update("DELETE FROM incomes WHERE portfolio_id = ?", portfolioId);

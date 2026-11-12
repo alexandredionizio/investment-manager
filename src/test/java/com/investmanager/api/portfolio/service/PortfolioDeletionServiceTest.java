@@ -27,6 +27,7 @@ class PortfolioDeletionServiceTest {
         sequence.verify(jdbc).update(contains("DELETE FROM b3_transaction_reversals"), eq(7L), eq(7L));
         sequence.verify(jdbc).update(contains("DELETE FROM b3_import_batch_rows"), eq(7L));
         sequence.verify(jdbc).update(startsWith("DELETE FROM b3_import_batches"), eq(7L));
+        sequence.verify(jdbc).update(startsWith("DELETE FROM b3_import_rejected_attempts"), eq(7L));
         sequence.verify(jdbc).update(startsWith("DELETE FROM valuation_contracts"), eq(7L));
         sequence.verify(jdbc).update(startsWith("DELETE FROM portfolio_asset_locks"), eq(7L));
         sequence.verify(jdbc).update(startsWith("DELETE FROM incomes"), eq(7L));
