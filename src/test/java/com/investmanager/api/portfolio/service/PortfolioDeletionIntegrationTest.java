@@ -119,12 +119,33 @@ class PortfolioDeletionIntegrationTest {
         jdbc.update("INSERT INTO b3_import_rejected_rows (attempt_id, excel_row, reason) VALUES (?, 2, 'Ativo ambíguo')", rejectedTarget);
         jdbc.update("INSERT INTO b3_import_rejected_rows (attempt_id, excel_row, reason) VALUES (?, 3, 'Valor ausente')", rejectedOther);
 
+        jdbc.update("""
+                INSERT INTO portfolio_capital_movements (portfolio_id, request_id, kind, movement_date, amount)
+                VALUES (?, ?, 'CONTRIBUTION', DATE '2026-09-01', 1000)
+                """, target.portfolioId(), UUID.randomUUID());
+        jdbc.update("""
+                INSERT INTO portfolio_cash_opening_checkpoints (portfolio_id, checkpoint_date, balance, source_description)
+                VALUES (?, DATE '2026-09-01', 500, 'Saldo confirmado para teste')
+                """, target.portfolioId());
+        jdbc.update("""
+                INSERT INTO portfolio_capital_movements (portfolio_id, request_id, kind, movement_date, amount)
+                VALUES (?, ?, 'CONTRIBUTION', DATE '2026-09-01', 2000)
+                """, other.portfolioId(), UUID.randomUUID());
+        jdbc.update("""
+                INSERT INTO portfolio_cash_opening_checkpoints (portfolio_id, checkpoint_date, balance, source_description)
+                VALUES (?, DATE '2026-09-01', 700, 'Saldo de outra carteira')
+                """, other.portfolioId());
+
         deletion.delete(target.portfolioId(), target.userId());
 
         assertEquals(0, count("b3_import_rejected_attempts", "id", rejectedTarget));
         assertEquals(0, count("b3_import_rejected_rows", "attempt_id", rejectedTarget));
         assertEquals(1, count("b3_import_rejected_attempts", "id", rejectedOther));
         assertEquals(1, count("b3_import_rejected_rows", "attempt_id", rejectedOther));
+        assertEquals(0, count("portfolio_capital_movements", "portfolio_id", target.portfolioId()));
+        assertEquals(0, count("portfolio_cash_opening_checkpoints", "portfolio_id", target.portfolioId()));
+        assertEquals(1, count("portfolio_capital_movements", "portfolio_id", other.portfolioId()));
+        assertEquals(1, count("portfolio_cash_opening_checkpoints", "portfolio_id", other.portfolioId()));
         assertEquals(0, count("portfolios", "id", target.portfolioId()));
         assertEquals(0, count("transactions", "id", target.transactionId()));
         assertEquals(0, count("incomes", "portfolio_id", target.portfolioId()));

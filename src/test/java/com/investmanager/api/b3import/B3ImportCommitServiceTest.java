@@ -163,6 +163,19 @@ class B3ImportCommitServiceTest {
         verifyNoInteractions(locks, reconciliation, transactions);
     }
 
+    @Test void partiallyOverlappingBatchRequiresManualReviewBeforeAccounting() {
+        given(row(2, "Compra", "3"), row(3, "Compra", "2"));
+        when(jdbc.queryForObject(startsWith("SELECT COUNT(*) FROM b3_import_batch_rows"),
+                eq(Long.class), eq(PORTFOLIO), eq(USER), eq(1L), eq(2L), eq("BUY"), eq(DAY),
+                eq(new BigDecimal("3")), eq(BigDecimal.TEN))).thenReturn(1L);
+        var failure = assertThrows(ResponseStatusException.class,
+                () -> service.commit(file, PORTFOLIO, USER, true));
+        assertEquals(409, failure.getStatusCode().value());
+        assertTrue(failure.getReason().contains("revise manualmente"));
+        verify(transactions, never()).createConfirmed(any(), any(), any());
+        verify(jdbc, never()).update(startsWith("INSERT INTO b3_import_batch_rows"), any(), any(), any());
+    }
+
     @Test void reversedTradeCannotBeSilentlyReimportedWithChangedFingerprint() {
         given(row(2, "Compra", "3"));
         when(jdbc.queryForObject(startsWith("SELECT count(*) FROM b3_transaction_reversals"),

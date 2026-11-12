@@ -3,6 +3,7 @@ package com.investmanager.api.asset.controller;
 import com.investmanager.api.asset.dto.AssetResponse;
 import com.investmanager.api.asset.dto.CreateAssetRequest;
 import com.investmanager.api.asset.service.AssetService;
+import com.investmanager.api.asset.discovery.InstrumentIdentityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -22,9 +23,11 @@ import java.util.List;
 public class AssetController {
 
     private final AssetService assetService;
+    private final InstrumentIdentityService identities;
 
-    public AssetController(AssetService assetService) {
+    public AssetController(AssetService assetService, InstrumentIdentityService identities) {
         this.assetService = assetService;
+        this.identities = identities;
     }
 
     @Operation(
@@ -75,6 +78,19 @@ public class AssetController {
     @GetMapping("/{id}")
     public AssetResponse findById(@PathVariable Long id) {
         return assetService.findById(id);
+    }
+
+    /** Históricos confirmados são apenas consultivos, nunca elegibilidade de compra. */
+    public record HistoricalIdentity(String kind, String value, String exchange,
+                                     String source, String observedName, java.time.LocalDate effectiveDate) {}
+
+    @GetMapping("/{id}/identifiers")
+    public List<HistoricalIdentity> identifiers(@PathVariable Long id) {
+        assetService.findById(id); // 404 para ativo inexistente; mesma política da consulta global.
+        return identities.identifiers(id).stream()
+                .map(item -> new HistoricalIdentity(item.kind(), item.value(), item.exchange(),
+                        item.source(), item.observedName(), item.effectiveDate()))
+                .toList();
     }
 
     @Operation(

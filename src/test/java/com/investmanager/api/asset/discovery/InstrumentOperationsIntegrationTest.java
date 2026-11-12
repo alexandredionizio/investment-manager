@@ -126,13 +126,16 @@ class InstrumentOperationsIntegrationTest {
                 .extracting(e -> ((InstrumentException)e).status()).isEqualTo(409);
         assertThat(transactions.count()).isEqualTo(1);
     }
-    @Test void verifiedRenameReusesIdentityAndKeepsHistoricalTickerAndOrigin() {
+    @Test void verifiedRenameReusesIdentityAndKeepsHistoricalTickerAndOrigin() throws Exception {
         var first=operations.purchase(request("VIIA3"),user.getId());
         when(catalog.confirm("BHIA3")).thenReturn(evidence("BHIA3",null,List.of(new InstrumentEvidence.Alias("VIIA3",date.plusDays(1)))));
         var renamed=operations.purchase(request("BHIA3"),user.getId());
         assertThat(renamed.assetId()).isEqualTo(first.assetId());assertThat(renamed.assetTicker()).isEqualTo("BHIA3");
         assertThat(accounting.findById(first.id(),user.getId()).assetTicker()).isEqualTo("VIIA3");
         assertThat(identities.identifiers(first.assetId())).extracting(InstrumentIdentityService.Identifier::value).containsExactly("BHIA3","VIIA3");
+        var identitiesHttp = http("GET", "/api/v1/assets/" + first.assetId() + "/identifiers", null, token);
+        assertThat(identitiesHttp.statusCode()).isEqualTo(200);
+        assertThat(identitiesHttp.body()).contains("VIIA3", "BHIA3", "TICKER").doesNotContain("assetId");
         assertThat(assets.count()).isEqualTo(1);
         assertThat(saleOptions.find(portfolio.getId(),user.getId(),date).getFirst().quantityAtDate()).isEqualByComparingTo("20");
     }

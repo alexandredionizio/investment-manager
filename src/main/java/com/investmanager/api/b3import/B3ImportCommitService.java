@@ -133,6 +133,31 @@ public class B3ImportCommitService {
             return new B3ImportCommitResponse(old.batchId(), portfolioId, "ALREADY_IMPORTED", 0, rows);
         }
 
+        // A negociação exportada pela B3 não contém um identificador único de execução.
+        // Um arquivo parcialmente sobreposto não é seguro para importação automática:
+        // transações iguais podem ser reenvios OU negociações legítimas distintas.
+        // Após o teste de hash do lote completo, bloquear a ambiguidade e exigir revisão
+        // humana, sempre antes da gravação financeira. A trava da carteira já foi obtida.
+        for (B3PreviewRow row : preview.rows()) {
+            var link = matched.get(row.excelRow());
+            Long overlap = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM b3_import_batch_rows imported
+                    JOIN b3_import_batches batch ON batch.id = imported.batch_id
+                    JOIN transactions trade ON trade.id = imported.transaction_id
+                    WHERE batch.portfolio_id = ? AND batch.user_id = ?
+                      AND trade.asset_id = ? AND trade.broker_id = ?
+                      AND trade.type = ? AND trade.transaction_date = ?
+                      AND trade.quantity = ? AND trade.unit_price = ?
+                    """, Long.class, portfolioId, userId, link.assetId(), link.brokerId(),
+                    "Compra".equalsIgnoreCase(row.movementType()) ? "BUY" : "SELL",
+                    row.tradeDate(), row.quantity(), row.unitPrice());
+            if (overlap != null && overlap > 0) {
+                throw conflict("Linha " + row.excelRow() +
+                        " corresponde a negociação já presente em outro lote B3. " +
+                        "Sem identificador de execução, revise manualmente para evitar duplicidade.");
+            }
+        }
+
         // Contrato de seguranca: nao recriar silenciosamente uma operacao B3 estornada,
         // mesmo que o arquivo tenha sido alterado e seu hash nao coincida com o lote original.
         for (B3PreviewRow row : preview.rows()) {
