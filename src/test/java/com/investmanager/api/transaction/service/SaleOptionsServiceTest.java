@@ -71,6 +71,18 @@ class SaleOptionsServiceTest {
         assertTrue(service.find(1L, 7L, date).isEmpty());
     }
 
+    @Test void intermediateFutureSaleLimitsQuantityEvenAfterLaterPurchase() {
+        var a = asset();
+        owned(transaction(a, TransactionType.BUY, "12", date.minusDays(2)),
+                transaction(a, TransactionType.SELL, "9", date.plusDays(1)),
+                transaction(a, TransactionType.BUY, "20", date.plusDays(2)));
+        var options = service.find(1L, 7L, date);
+        assertEquals(1, options.size());
+        assertEquals(0, options.getFirst().quantityAtDate().compareTo(new BigDecimal("12")));
+        assertEquals(0, options.getFirst().chronologicalLimit().compareTo(new BigDecimal("3")),
+                "Compras futuras não podem financiar uma venda retroativa anterior à compra");
+    }
+
     @Test void userCannotSearchSaleOptionsForForeignPortfolio() {
         assertThrows(RuntimeException.class, () -> service.find(1L, 99L, date));
         verifyNoInteractions(transactions);

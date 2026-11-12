@@ -184,6 +184,15 @@ class InstrumentOperationsIntegrationTest {
         }
         verifyNoInteractions(catalog);assertThat(transactions.count()).isEqualTo(3);
     }
+    @Test void sellDoesNotQueryCatalogButRejectsInvalidClassIdentity() {
+        Asset invalidCrypto = legacy("UNKNOWNCOIN", AssetType.CRYPTO, "OTHER");
+        assertThatThrownBy(() -> operations.create(new TransactionRequest(portfolio.getId(), invalidCrypto.getId(),
+                broker.getId(), TransactionType.SELL, BigDecimal.ONE, BigDecimal.ONE, date), user.getId()))
+                .isInstanceOf(InstrumentException.class);
+        verifyNoInteractions(catalog);
+        assertThat(transactions.count()).isZero();
+    }
+
     @Test void unauthorizedPortfolioCannotQueryOrRegisterAndEndpointsRequireAuthentication() throws Exception {
         assertThatThrownBy(() -> operations.purchase(request("PETR4"),other.getId())).isInstanceOf(com.investmanager.api.portfolio.exception.PortfolioNotFoundException.class);
         assertThatThrownBy(() -> saleOptions.find(portfolio.getId(),other.getId(),date)).isInstanceOf(com.investmanager.api.portfolio.exception.PortfolioNotFoundException.class);

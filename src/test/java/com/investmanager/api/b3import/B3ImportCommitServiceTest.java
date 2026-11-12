@@ -40,8 +40,9 @@ class B3ImportCommitServiceTest {
     private final TransactionService transactions = mock(TransactionService.class);
     private final EntityManager em = mock(EntityManager.class);
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    private final B3ImportRejectionAuditService rejectionAudit = mock(B3ImportRejectionAuditService.class);
     private final B3ImportCommitService service = new B3ImportCommitService(
-            previews, matching, reconciliation, portfolios, assets, locks, executor, transactions, em, jdbc);
+            previews, matching, reconciliation, portfolios, assets, locks, executor, transactions, em, jdbc, rejectionAudit);
     private final MockMultipartFile file = new MockMultipartFile("file", "test.xlsx", "application/octet-stream", new byte[] {1});
 
     @BeforeEach void setup() {
@@ -229,6 +230,23 @@ class B3ImportCommitServiceTest {
                 () -> service.commit(file, PORTFOLIO, USER, true));
         assertEquals(409, exception.getStatusCode().value());
         verify(transactions, never()).createConfirmed(any(), any(), any());
+    }
+
+    @Test void rejectedConfirmedAttemptIsAuditedWithoutCreatingTransactions() {
+        given(row(2, "Compra", "10"));
+        when(reconciliation.reconcile(file, PORTFOLIO, USER))
+                .thenReturn(new B3ReconciliationResponse("test.xlsx", PORTFOLIO, 1, 0, 1, 0, List.of()));
+        var error = assertThrows(ResponseStatusException.class,
+                () -> service.commit(file, PORTFOLIO, USER, true));
+        assertEquals(409, error.getStatusCode().value());
+        verify(rejectionAudit).record(eq(file), eq(PORTFOLIO), eq(USER), contains("Conciliação"));
+        verify(transactions, never()).createConfirmed(any(), any(), any());
+    }
+
+    @Test void unconfirmedOrForeignImportMustNotBeAudited() {
+        assertThrows(ResponseStatusException.class, () -> service.commit(file, PORTFOLIO, USER, false));
+        assertThrows(ResponseStatusException.class, () -> service.commit(file, PORTFOLIO, 999L, true));
+        verifyNoInteractions(rejectionAudit);
     }
 
 }

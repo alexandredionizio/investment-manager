@@ -39,7 +39,18 @@ public class TransactionOperationsService {
     }
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public TransactionResponse create(TransactionRequest request, Long userId) {
-        if (request.type() != TransactionType.BUY) return transactions.create(request, userId);
+        if (request.type() != TransactionType.BUY) {
+            // A venda não depende do catálogo externo (o ativo pode estar deslistado),
+            // mas também não pode contornar regras locais de classe e identidade.
+            authorize(request.portfolioId(), userId);
+            Asset saleAsset = assets.findById(request.assetId())
+                    .orElseThrow(() -> new AssetNotFoundException(request.assetId()));
+            if (saleAsset.getType() == null ||
+                    (saleAsset.getType() == AssetType.CRYPTO &&
+                            SupportedCryptocurrency.identify(saleAsset.getTicker()).isEmpty()))
+                throw InstrumentException.ineligible();
+            return transactions.create(request, userId);
+        }
         authorize(request.portfolioId(), userId);
         Asset asset = assets.findById(request.assetId()).orElseThrow(() -> new AssetNotFoundException(request.assetId()));
         if (asset.getType() == AssetType.STOCK || asset.getType() == AssetType.FII || asset.getType() == AssetType.ETF) {

@@ -46,14 +46,17 @@ public class B3ImportCommitService {
     private final TransactionService transactions;
     private final EntityManager entityManager;
     private final JdbcTemplate jdbc;
+    private final B3ImportRejectionAuditService rejectionAudit;
 
     public B3ImportCommitService(B3SpreadsheetPreviewService previews, B3MatchingService matching,
                                  B3ReconciliationService reconciliation, PortfolioRepository portfolios,
                                  AssetRepository assets, PortfolioAssetLockManager locks, TransactionCreationExecutor executor,
-                                 TransactionService transactions, EntityManager entityManager, JdbcTemplate jdbc) {
+                                 TransactionService transactions, EntityManager entityManager, JdbcTemplate jdbc,
+                                 B3ImportRejectionAuditService rejectionAudit) {
         this.previews = previews; this.matching = matching; this.reconciliation = reconciliation;
         this.portfolios = portfolios; this.assets = assets; this.locks = locks; this.executor = executor;
         this.transactions = transactions; this.entityManager = entityManager; this.jdbc = jdbc;
+        this.rejectionAudit = rejectionAudit;
     }
 
     /** Histórico de lotes importados, sempre limitado à carteira do usuário autenticado. */
@@ -73,7 +76,25 @@ public class B3ImportCommitService {
         if (!confirmed) throw badRequest("Confirme expressamente a importação antes da gravação.");
         if (portfolioId == null || userId == null) throw badRequest("Carteira inválida.");
         // MultipartFile é mantido imutável durante todas as leituras. Nenhuma chamada à Brapi dentro da transação.
-        return executor.execute(() -> commitAtomically(file, portfolioId, userId));
+        try {
+            return executor.execute(() -> commitAtomically(file, portfolioId, userId));
+        } catch (RuntimeException rejected) {
+            // A tentativa confirmada foi recusada após rollback; auditoria em transação própria.
+            // Não registrar tentativas sobre carteira alheia nem mascarar o erro original.
+            try {
+                if (portfolios.findByIdAndUserId(portfolioId, userId).isPresent()) {
+                    rejectionAudit.record(file, portfolioId, userId,
+                            rejected instanceof ResponseStatusException status
+                                    ? status.getReason() == null ? "Importação recusada." : status.getReason()
+                                    : rejected instanceof IllegalArgumentException && rejected.getMessage() != null
+                                        ? rejected.getMessage() : "Tentativa não concluída; verifique regras de negócio e disponibilidade.");
+                }
+            } catch (RuntimeException auditFailure) {
+                // Falha da auditoria não pode mascarar a recusa original, mas fica rastreável no log.
+                rejected.addSuppressed(auditFailure);
+            }
+            throw rejected;
+        }
     }
 
     private B3ImportCommitResponse commitAtomically(MultipartFile file, Long portfolioId, Long userId) {
