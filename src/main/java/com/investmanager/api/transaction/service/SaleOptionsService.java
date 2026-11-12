@@ -33,7 +33,9 @@ public class SaleOptionsService {
             var asset = history.getFirst().getAsset();
             result.add(new Option(asset.getId(), asset.getTicker(), asset.getName(), asset.getType(), atDate, limit.max(BigDecimal.ZERO)));
         }
-        return result.stream().sorted(Comparator.comparing(Option::ticker).thenComparing(Option::assetId)).toList();
+        return result.stream()
+                .filter(option -> option.chronologicalLimit().signum() > 0)
+                .sorted(Comparator.comparing(Option::ticker).thenComparing(Option::assetId)).toList();
     }
     private BigDecimal apply(BigDecimal balance, Transaction transaction) {
         return transaction.getType() == TransactionType.BUY ? balance.add(transaction.getQuantity()) : balance.subtract(transaction.getQuantity());

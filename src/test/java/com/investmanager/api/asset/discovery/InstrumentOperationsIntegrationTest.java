@@ -155,12 +155,11 @@ class InstrumentOperationsIntegrationTest {
                 .isInstanceOf(InstrumentException.class);
         assertThat(assets.count()).isEqualTo(2);
     }
-    @Test void historicalPositionIncludesAssetSoldTodayButChronologyStillRejectsExcess() {
+    @Test void historicalPositionExhaustedByFutureSaleIsNotEligible() {
         var buy=operations.purchase(request("PETR4"),user.getId());
         accounting.create(new TransactionRequest(portfolio.getId(),buy.assetId(),broker.getId(),TransactionType.SELL,BigDecimal.TEN,BigDecimal.TEN,date.plusDays(10)),user.getId());
         assertThat(saleOptions.find(portfolio.getId(),user.getId(),date.plusDays(10))).isEmpty();
-        var historical=saleOptions.find(portfolio.getId(),user.getId(),date).getFirst();
-        assertThat(historical.quantityAtDate()).isEqualByComparingTo("10");assertThat(historical.chronologicalLimit()).isZero();
+        assertThat(saleOptions.find(portfolio.getId(),user.getId(),date)).isEmpty();
         assertThatThrownBy(() -> operations.create(new TransactionRequest(portfolio.getId(),buy.assetId(),broker.getId(),TransactionType.SELL,BigDecimal.ONE,BigDecimal.TEN,date),user.getId()))
                 .isInstanceOf(InsufficientPositionException.class);
         assertThat(transactions.count()).isEqualTo(2);

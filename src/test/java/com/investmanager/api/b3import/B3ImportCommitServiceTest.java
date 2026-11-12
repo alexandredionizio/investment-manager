@@ -84,6 +84,15 @@ class B3ImportCommitServiceTest {
         verifyNoInteractions(previews, matching, reconciliation, jdbc, transactions);
     }
 
+    @Test void invalidPreviewRowsCannotReachMatchingOrPersistence() {
+        when(previews.preview(file)).thenReturn(new B3PreviewResponse(
+                "test.xlsx", 1, 0, 1, List.of()));
+        var error = assertThrows(ResponseStatusException.class,
+                () -> service.commit(file, PORTFOLIO, USER, true));
+        assertEquals(409, error.getStatusCode().value());
+        verifyNoInteractions(matching, reconciliation, transactions, locks, jdbc);
+    }
+
     @Test void foreignPortfolioIsRejectedBeforeParsing() {
         assertThrows(ResponseStatusException.class, () -> service.commit(file, PORTFOLIO, 999L, true));
         verifyNoInteractions(previews, matching, reconciliation, jdbc, transactions);
