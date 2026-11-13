@@ -156,6 +156,7 @@ public class B3ImportCommitService {
                         " corresponde a negociação já presente em outro lote B3. " +
                         "Sem identificador de execução, revise manualmente para evitar duplicidade.");
             }
+
         }
 
         // Contrato de seguranca: nao recriar silenciosamente uma operacao B3 estornada,
@@ -200,6 +201,31 @@ public class B3ImportCommitService {
         // Bloqueio ordenado POR ATIVO: coordenação idêntica ao registro manual, evita deadlock entre lotes.
         matched.values().stream().map(B3MatchResponse.Row::assetId).distinct().sorted()
                 .forEach(assetId -> locks.acquire(portfolioId, assetId));
+
+        // IM-042: verificar conflitos manuais APÓS obter os locks dos ativos e
+        // revalidar o histórico. Assim, operações manuais concorrentes não passam
+        // entre a conferência e a gravação do lote.
+        for (B3PreviewRow row : preview.rows()) {
+            var link = matched.get(row.excelRow());
+            // IM-042: uma negociação manual idêntica também pode representar a mesma
+            // execução B3. Sem ID de execução na planilha, nunca a duplica automaticamente.
+            // Não confundir com lançamentos de lotes B3, já tratados acima.
+            Long manualOverlap = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM transactions trade
+                    WHERE trade.portfolio_id = ? AND trade.asset_id = ? AND trade.broker_id = ?
+                      AND trade.type = ? AND trade.transaction_date = ?
+                      AND trade.quantity = ? AND trade.unit_price = ?
+                      AND NOT EXISTS (SELECT 1 FROM b3_import_batch_rows imported
+                                      WHERE imported.transaction_id = trade.id)
+                    """, Long.class, portfolioId, link.assetId(), link.brokerId(),
+                    "Compra".equalsIgnoreCase(row.movementType()) ? "BUY" : "SELL",
+                    row.tradeDate(), row.quantity(), row.unitPrice());
+            if (manualOverlap != null && manualOverlap > 0) {
+                throw conflict("Linha " + row.excelRow() +
+                        " coincide com negociação manual já registrada. " +
+                        "Verifique a origem antes de importar para evitar duplicidade.");
+            }
+        }
 
         // Só após adquirir TODOS os locks fazemos a revalidação contra o histórico mais recente.
         B3ReconciliationResponse validation = reconciliation.reconcile(file, portfolioId, userId);

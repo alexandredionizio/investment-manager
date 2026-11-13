@@ -136,6 +136,44 @@ class B3ImportBalanceRevalidationIntegrationTest {
         assertEquals(0, new BigDecimal("4").compareTo(balance(portfolioId, assetId)));
     }
 
+    @Test
+    void manualTradeIdenticalToB3RowRequiresReviewAndDoesNotDuplicateAccounting() {
+        record Fixture(Long userId, Long portfolioId, Long assetId, Long brokerId) {}
+        Fixture fixture = new TransactionTemplate(transactionManager).execute(status -> {
+            User user = users.save(new User("IM042 Teste Manual", "im042-manual@test.invalid", "test"));
+            Portfolio portfolio = portfolios.save(new Portfolio("IM042 MANUAL", "Somente Testcontainers", user));
+            Broker broker = new Broker();
+            broker.setName("Corretora IM042 Manual");
+            broker = brokers.save(broker);
+            Asset asset = new Asset();
+            asset.setTicker("VALE3");
+            asset.setName("VALE3");
+            asset.setType(AssetType.STOCK);
+            asset.setExchange("B3");
+            asset = assets.save(asset);
+            return new Fixture(user.getId(), portfolio.getId(), asset.getId(), broker.getId());
+        });
+        assertNotNull(fixture);
+        LocalDate day = LocalDate.of(2026, 11, 6);
+        transactions.create(new TransactionRequest(fixture.portfolioId(), fixture.assetId(), fixture.brokerId(),
+                TransactionType.BUY, new BigDecimal("5"), new BigDecimal("60"), day), fixture.userId());
+        B3PreviewRow row = new B3PreviewRow(2, day, "Compra", "Mercado à Vista", "", "XP", "VALE3",
+                new BigDecimal("5"), new BigDecimal("60"), new BigDecimal("300"), List.of(), List.of());
+        when(previews.preview(any(MultipartFile.class))).thenReturn(
+                new B3PreviewResponse("im042-manual.xlsx", 1, 1, 0, List.of(row)));
+        when(matching.match(any(MultipartFile.class))).thenReturn(
+                new B3MatchResponse("im042-manual.xlsx", 1, 1, 0, 0,
+                        List.of(new B3MatchResponse.Row(2, "VALE3", "XP", "MATCHED", fixture.assetId(),
+                                "MATCHED", fixture.brokerId(), List.of(), List.of()))));
+        ResponseStatusException failure = assertThrows(ResponseStatusException.class,
+                () -> importer.commit(file, fixture.portfolioId(), fixture.userId(), true));
+        assertEquals(HttpStatus.CONFLICT.value(), failure.getStatusCode().value());
+        assertTrue(failure.getReason().contains("negociação manual"));
+        assertEquals(1L, countTransactions(fixture.portfolioId()));
+        assertEquals(0L, countBatches(fixture.portfolioId()));
+        assertEquals(0, new BigDecimal("5").compareTo(balance(fixture.portfolioId(), fixture.assetId())));
+    }
+
     private long countTransactions(Long portfolioId) {
         return jdbc.queryForObject("SELECT count(*) FROM transactions WHERE portfolio_id = ?",
                 Long.class, portfolioId);
