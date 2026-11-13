@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(
                 HttpStatus.NOT_FOUND.value(),
                 "Não encontrado",
-                exception.getMessage()
+                "Ativo não encontrado."
         );
     }
 
@@ -111,7 +111,7 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(
                 HttpStatus.NOT_FOUND.value(),
                 "Não encontrado",
-                exception.getMessage()
+                "Carteira não encontrada."
         );
     }
 
@@ -123,7 +123,7 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(
                 HttpStatus.NOT_FOUND.value(),
                 "Não encontrado",
-                exception.getMessage()
+                "Transação não encontrada."
         );
     }
 
@@ -159,7 +159,7 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(
                 HttpStatus.NOT_FOUND.value(),
                 "Não encontrado",
-                exception.getMessage()
+                "Corretora não encontrada."
         );
     }
 
@@ -171,7 +171,7 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(
                 HttpStatus.NOT_FOUND.value(),
                 "Não encontrado",
-                exception.getMessage()
+                "Provento não encontrado."
         );
     }
 

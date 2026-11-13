@@ -21,6 +21,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -161,6 +167,77 @@ class PortfolioDeletionIntegrationTest {
         assertEquals(1, count("b3_import_batches", "id", other.batchId()));
         assertEquals(1, count("b3_import_batch_rows", "id", other.rowId()));
         assertEquals(1, count("b3_transaction_reversals", "id", other.reversalId()));
+    }
+
+    @Test
+    void concurrentDeletionsAllowOnlyOneSuccessAndLeaveUnrelatedPortfolioIntact() throws Exception {
+        Fixture target = fixture(false);
+        Fixture unrelated = fixture(false);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Callable<Boolean> attempt = () -> {
+                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Início não liberado");
+                try {
+                    deletion.delete(target.portfolioId(), target.userId());
+                    return true;
+                } catch (PortfolioNotFoundException notFound) {
+                    return false;
+                }
+            };
+            Future<Boolean> first = pool.submit(attempt);
+            Future<Boolean> second = pool.submit(attempt);
+            start.countDown();
+            int successful = (first.get(15, TimeUnit.SECONDS) ? 1 : 0)
+                    + (second.get(15, TimeUnit.SECONDS) ? 1 : 0);
+            assertEquals(1, successful, "Apenas uma exclusão pode efetivar a carteira");
+            assertEquals(0, count("portfolios", "id", target.portfolioId()));
+            assertEquals(0, count("transactions", "portfolio_id", target.portfolioId()));
+            assertEquals(1, count("portfolios", "id", unrelated.portfolioId()));
+            assertEquals(1, count("transactions", "portfolio_id", unrelated.portfolioId()));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void insertionDuringUncommittedDeletionCannotResurrectPortfolio() throws Exception {
+        Fixture target = fixture(false);
+        Fixture unrelated = fixture(false);
+        CountDownLatch deletedInsideTransaction = new CountDownLatch(1);
+        CountDownLatch allowCommit = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> removal = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                deletion.delete(target.portfolioId(), target.userId());
+                deletedInsideTransaction.countDown();
+                try {
+                    if (!allowCommit.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Commit não liberado");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Teste interrompido", e);
+                }
+                return null;
+            }));
+            assertTrue(deletedInsideTransaction.await(10, TimeUnit.SECONDS));
+            Future<?> insertion = pool.submit(() -> jdbc.update("""
+                    INSERT INTO transactions (portfolio_id, asset_id, type, quantity, unit_price, transaction_date)
+                    VALUES (?, ?, 'BUY', 1, 10, DATE '2026-11-02')
+                    """, target.portfolioId(), target.assetId()));
+            assertThrows(java.util.concurrent.TimeoutException.class,
+                    () -> insertion.get(300, TimeUnit.MILLISECONDS),
+                    "A inserção deve aguardar o desfecho da exclusão em andamento");
+            allowCommit.countDown();
+            removal.get(15, TimeUnit.SECONDS);
+            assertThrows(ExecutionException.class, () -> insertion.get(15, TimeUnit.SECONDS),
+                    "A FK deve rejeitar a inserção após a exclusão ser confirmada");
+            assertEquals(0, count("portfolios", "id", target.portfolioId()));
+            assertEquals(0, count("transactions", "portfolio_id", target.portfolioId()));
+            assertEquals(1, count("portfolios", "id", unrelated.portfolioId()));
+        } finally {
+            allowCommit.countDown();
+            pool.shutdownNow();
+        }
     }
 
     @Test
