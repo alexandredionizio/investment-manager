@@ -51,6 +51,21 @@ public class B3ImportRejectionAuditService {
         // Apenas problemas efetivamente apresentados pelo parser são vinculados a uma linha.
         // Uma falha de regra de negócio não é atribuída artificialmente a todas as linhas.
         Map<Integer, List<String>> reasons = new TreeMap<>();
+        // Um conflito detectado durante o commit pode desaparecer ao reconstruir a
+        // conciliação após o rollback. O número da linha consta da própria recusa;
+        // preservá-lo evita perder o vínculo auditável com a planilha original.
+        // Apenas razões emitidas no formato conhecido "Linha N ..." são associadas.
+        if (reason != null) {
+            var line = java.util.regex.Pattern.compile("^Linha (\\d+)\\b").matcher(reason);
+            if (line.find()) {
+                try {
+                    int excelRow = Integer.parseInt(line.group(1));
+                    if (excelRow > 0) reasons.computeIfAbsent(excelRow, ignored -> new ArrayList<>()).add(reason);
+                } catch (NumberFormatException ignored) {
+                    // Número inválido: manter a razão global, sem inventar uma linha.
+                }
+            }
+        }
         try {
             B3PreviewResponse preview = previews.preview(file);
             for (B3PreviewRow row : preview.rows()) {

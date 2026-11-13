@@ -45,4 +45,22 @@ class B3ImportRejectionAuditServiceTest {
         audit.record(file, 6L, 7L, "Cabeçalho inválido");
         verify(jdbc, never()).update(startsWith("INSERT INTO b3_import_rejected_rows"), any(Object[].class));
     }
+
+    @Test void commitConflictKeepsExcelRowEvenWhenReconciliationCannotRebuildIt() {
+        String reason = "Linha 7 corresponde a negociação já presente em outro lote B3. Sem identificador de execução, revise manualmente.";
+        when(jdbc.queryForObject(startsWith("INSERT INTO b3_import_rejected_attempts"),
+                eq(Long.class), any(), any(), any(), any(), any())).thenReturn(93L);
+        when(previews.preview(file)).thenThrow(new IllegalArgumentException("Prévia indisponível após rollback"));
+        audit.record(file, 6L, 7L, reason);
+        verify(jdbc).update(startsWith("INSERT INTO b3_import_rejected_rows"), eq(93L), eq(7), eq(reason));
+        verify(jdbc, never()).update(contains("transactions"), any(Object[].class));
+    }
+
+    @Test void genericFailureRemainsGlobalWithoutFabricatedRow() {
+        when(jdbc.queryForObject(startsWith("INSERT INTO b3_import_rejected_attempts"),
+                eq(Long.class), any(), any(), any(), any(), any())).thenReturn(94L);
+        when(previews.preview(file)).thenThrow(new IllegalArgumentException("arquivo indisponível"));
+        audit.record(file, 6L, 7L, "Conciliação alterada ou pendente.");
+        verify(jdbc, never()).update(startsWith("INSERT INTO b3_import_rejected_rows"), any(Object[].class));
+    }
 }
